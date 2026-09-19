@@ -21,7 +21,7 @@ def save_run(run_dir: Path, results: list[tuple[SessionReport, list[bytes], byte
     if verdict:
         (run_dir / "verdict.json").write_text(verdict.model_dump_json(indent=1))
     out = run_dir / "report.html"
-    tokens = {"evaluator_input": eval_usage.input_tokens, "evaluator_output": eval_usage.output_tokens} if eval_usage else {}
+    tokens = eval_usage or {}
     (run_dir / "usage.json").write_text(json.dumps(tokens))
     out.write_text(render_html([r for r, _, _ in results], metrics, verdict, {r.session_id for r, _, v in results if v}, tokens))
     return out
