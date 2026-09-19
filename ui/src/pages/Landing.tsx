@@ -236,21 +236,21 @@ function HowStep({ n, title, children }: { n: string; title: string; children: s
 const CSS = `
 .ld-hero { position: relative; max-width: 1240px; margin: 0 auto; padding: 84px 24px 88px; overflow: hidden; }
 .ld-glow { position: absolute; inset: -20% -10% auto; height: 720px; pointer-events: none; z-index: 0;
-  background: radial-gradient(45% 55% at 50% 20%, rgba(74,222,128,0.16), transparent 70%), radial-gradient(30% 40% at 80% 60%, rgba(96,165,250,0.08), transparent 70%);
+  background: radial-gradient(45% 55% at 50% 20%, rgba(var(--pp-accent-rgb),0.07), transparent 70%);
   -webkit-mask-image: linear-gradient(#000, transparent); mask-image: linear-gradient(#000, transparent); }
-.ld-glow::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px); background-size: 22px 22px;
+.ld-glow::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(var(--pp-dot-grid) 1px, transparent 1px); background-size: 22px 22px;
   -webkit-mask-image: radial-gradient(60% 60% at 50% 30%, #000, transparent); mask-image: radial-gradient(60% 60% at 50% 30%, #000, transparent); }
 .ld-head { position: relative; z-index: 1; text-align: center; max-width: 1060px; margin: 0 auto 52px; }
 .ld-title { margin: 22px 0 20px; font-size: clamp(34px, 5.6vw, 62px); font-weight: 700; letter-spacing: -0.04em; line-height: 1.02; }
-.ld-title span { background: linear-gradient(90deg, #4ade80, #a3e635 40%, #60a5fa); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.ld-title span { color: var(--pp-accent); }
 .ld-stage { position: relative; z-index: 1; }
 .ld-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.ld-band { border-top: 1px solid #1e2230; }
+.ld-band { border-top: 1px solid var(--pp-border); }
 .ld-cols, .ld-inner { max-width: 1120px; margin: 0 auto; padding: 64px 24px; }
 .ld-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px; }
 .ld-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.ld-link { color: #4ade80; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(74,222,128,0.35); }
-.ld-link:hover { text-decoration-color: #4ade80; }
+.ld-link { color: var(--pp-accent); font-size: 14px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(var(--pp-accent-rgb),0.35); }
+.ld-link:hover { text-decoration-color: var(--pp-accent); }
 @media (max-width: 900px) {
   .ld-hero { padding: 48px 16px 64px; }
   .ld-head { margin-bottom: 36px; }
