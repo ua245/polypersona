@@ -3,6 +3,7 @@ import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import { ApiError, fmtTokens, guideAgent, sessionList, stopAgent, useRun, useSelectedRunId, videoUrl, type ExitSurvey, type Observation, type SessionState, type Step } from '../lib/api';
 import { STATE_LABEL, STATE_TONE, agentPath, agentState, avatarColor, initials, stageOf, testPath } from '../lib/derive';
 import { C, Empty, KIND_TONE, KindTag, Page, PatienceBar, Screenshot, SectionLabel, SessionTag, Tag, stepLabel, useTokenGate } from '../lib/ui';
+import Theater from './agent/Theater';
 import { orderedStages, stageVisits } from './test/live/stages';
 
 const TONE_COLOR = { muted: C.muted2, green: C.green, yellow: C.yellow, blue: C.blue, red: C.red } as const;
@@ -129,6 +130,8 @@ export default function AgentDetail() {
 
   const [follow, setFollow] = useState<boolean>(() => parseHashStep(window.location.hash) == null);
   const [pinnedIdx, setPinnedIdx] = useState<number>(() => parseHashStep(window.location.hash) ?? 0);
+  const [theater, setTheater] = useState(false);
+  const closeTheater = useCallback(() => setTheater(false), []);
 
   // Deep links such as #step-14 (also when the hash changes while this page is open).
   useEffect(() => {
@@ -173,6 +176,7 @@ export default function AgentDetail() {
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'VIDEO') return;
     if (e.key === 'ArrowLeft') { e.preventDefault(); selectPos(pos - 1); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); selectPos(pos + 1); }
+    else if (e.key.toLowerCase() === 'f') { e.preventDefault(); setTheater(true); }
   };
 
   const obsByStep = useMemo(() => {
@@ -334,7 +338,15 @@ export default function AgentDetail() {
                 {step?.url || 'about:blank'}
               </div>
               {running && <Tag tone={follow ? 'green' : 'yellow'} pulse={follow}><span className={follow ? 'dot-green' : 'dot-yellow'} /> LIVE</Tag>}
+              <button type="button" className="btn-secondary" onClick={() => setTheater(true)} disabled={!step} title="Full screen (F)" style={{ padding: '4px 10px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M1 4.5V1h3.5M11 4.5V1H7.5M1 7.5V11h3.5M11 7.5V11H7.5" /></svg>
+                Full screen
+              </button>
             </div>
+            {theater && step && (
+              <Theater runId={run.run_id} session={session} steps={steps} observations={observations} pos={pos} onSelect={selectPos}
+                follow={follow} onFollow={(on) => { if (!on && step) setPinnedIdx(step.idx); setFollow(on); }} onClose={closeTheater} />
+            )}
 
             {step ? (
               <Screenshot
