@@ -44,11 +44,25 @@ export default function SetupStage({ showRecent }: { showRecent: boolean }) {
 
   useEffect(() => {
     let alive = true;
+    // The quick demo (one persona) is preselected: the cheapest way to see the whole flow.
     getPersonas()
-      .then((p) => { if (alive) { setBuiltIn(p); setSelected(new Set(p.map((x) => `b:${x.id}`))); } })
+      .then((p) => { if (alive) { setBuiltIn(p); setSelected(new Set((p.some((x) => x.id === 'dev') ? ['dev'] : p.slice(0, 1).map((x) => x.id)).map((id) => `b:${id}`))); } })
       .catch((e: unknown) => { if (alive) { setBuiltIn([]); setLoadError(e instanceof Error ? e.message : String(e)); } });
     return () => { alive = false; };
   }, []);
+
+  // One-click starting points. They only fill in the form; nothing starts until "Start test".
+  const presets: { label: string; detail: string; ids: string[]; variants: string[] }[] = [
+    { label: 'Quick demo', detail: '1 persona · clean vs dark patterns', ids: ['dev'], variants: ['a', 'b'] },
+    { label: 'Full panel', detail: '3 personas · clean vs dark patterns', ids: ['margaret', 'dev', 'sofia'], variants: ['a', 'b'] },
+    { label: 'Subtle redesign', detail: '3 personas · clean vs plausible redesign', ids: ['margaret', 'dev', 'sofia'], variants: ['a', 'c'] },
+  ];
+  const applyPreset = (p: (typeof presets)[number]) => {
+    setSelected(new Set(p.ids.map((id) => `b:${id}`)));
+    setTarget('demo'); setVariants(p.variants); setRepeats(1);
+  };
+  const presetOn = (p: (typeof presets)[number]) =>
+    target === 'demo' && repeats === 1 && p.variants.join() === [...variants].sort().join() && selected.size === p.ids.length && p.ids.every((id) => selected.has(`b:${id}`));
 
   const toggle = (key: string) => setSelected((prev) => {
     const next = new Set(prev);
@@ -105,6 +119,23 @@ export default function SetupStage({ showRecent }: { showRecent: boolean }) {
     <div>
       {dialog}
       <form onSubmit={(e) => { e.preventDefault(); if (!problem && !busy) guard(() => { void doStart(); }); }} style={{ display: 'grid', gap: 16 }}>
+        <div>
+          <SectionLabel>Start from a preset, or build your own below</SectionLabel>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>
+            {presets.map((p) => {
+              const on = presetOn(p);
+              return (
+                <button key={p.label} type="button" aria-pressed={on} onClick={() => applyPreset(p)} style={{
+                  textAlign: 'left', padding: '12px 14px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', color: C.text,
+                  background: on ? 'rgba(74,222,128,0.06)' : C.surface, border: `1px solid ${on ? C.green : C.border}`,
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{p.label}</div>
+                  <div style={{ fontSize: 12, color: C.muted2, marginTop: 2 }}>{p.detail}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <Block n="1" title="Personas" aside={<span className="mono" style={{ fontSize: 12, color: C.muted2 }}>{nPersonas} selected</span>}>
           {builtIn == null && <div style={{ color: C.muted2, fontSize: 13 }}>Loading personas…</div>}
           {loadError && <div role="alert" style={{ color: C.red, fontSize: 13, marginBottom: 10 }}>Built-in personas could not be loaded: {loadError}</div>}
@@ -177,12 +208,13 @@ export default function SetupStage({ showRecent }: { showRecent: boolean }) {
         <div className="card" style={{ padding: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
           <div style={{ flex: '1 1 320px', minWidth: 0 }}>
             <div className="mono" style={{ fontSize: 13 }}>
-              {nPersonas} {nPersonas === 1 ? 'persona' : 'personas'} × 2 variants × {repeats} {repeats === 1 ? 'repeat' : 'repeats'} = <span style={{ color: C.green }}>{nSessions} sessions</span>, each in its own Modal container
+              {nPersonas} {nPersonas === 1 ? 'persona' : 'personas'} × 2 variants × {repeats} {repeats === 1 ? 'repeat' : 'repeats'} = <span style={{ color: C.green }}>{nSessions} agents</span>, each in its own container
             </div>
+            {nSessions > 0 && <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>Agents run in parallel: expect about 2–4 minutes including the verdict, and roughly {fmtTokens(nSessions * 150000)} Gemini tokens.</div>}
             {problem && <div style={{ fontSize: 12, color: C.yellow, marginTop: 6 }}>{problem}</div>}
             {error && <div role="alert" style={{ fontSize: 12, color: C.red, marginTop: 6 }}>Could not start the run: {error}</div>}
           </div>
-          <button type="submit" className="btn-primary" disabled={busy || problem != null} style={{ padding: '9px 20px' }}>{busy ? 'Starting…' : 'Start run'}</button>
+          <button type="submit" className="btn-primary" disabled={busy || problem != null} style={{ padding: '9px 20px' }}>{busy ? 'Starting…' : 'Start test'}</button>
         </div>
       </form>
 

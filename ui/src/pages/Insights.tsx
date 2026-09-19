@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { fmtTime, fmtTokens, sessionList, useRun, useRuns, useSelectedRunId, type RunConfig, type RunState, type Verdict } from '../lib/api';
-import { C, Empty, Page, RunStatusTag, SectionLabel, SessionTag, Tag } from '../lib/ui';
+import { C, Empty, Page, RunBar, RunStatusTag, SectionLabel, SessionTag, Tag } from '../lib/ui';
 import Metrics from './insights/Metrics';
 import Issues from './insights/Issues';
 import Ask from './insights/Ask';
@@ -217,7 +217,7 @@ export default function Insights() {
   }
 
   return (
-    <Page title="Insights" subtitle="What the agents found, which variant held up, and the steps that prove it." actions={picker}>
+    <Page title="Insights" subtitle="What the agents found, which variant held up, and the steps that prove it." actions={picker} runBar={run ? <RunBar run={run} active="results" /> : undefined}>
       {body}
     </Page>
   );

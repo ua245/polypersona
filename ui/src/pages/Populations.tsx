@@ -4,7 +4,7 @@ import {
   fmtTime, getPersonas, loadCustomPersonas, sessionList, useRun, useRuns, useSelectedRunId,
   type Device, type Persona, type SessionState,
 } from '../lib/api';
-import { C, Empty, Page, PatienceBar, RunStatusTag, Screenshot, SectionLabel, SessionTag, Tag } from '../lib/ui';
+import { C, Empty, Page, PatienceBar, RunBar, RunStatusTag, Screenshot, SectionLabel, SessionTag, Tag } from '../lib/ui';
 
 type StateFilter = 'all' | 'running' | 'completed' | 'not_completed';
 type DeviceFilter = 'all' | Device;
@@ -210,7 +210,7 @@ export default function Populations() {
   ) : null;
 
   return (
-    <Page title="Populations" subtitle="Every agent in the run, each in its own container with a real browser. Open one to watch it work." actions={picker}>
+    <Page title="Agents" subtitle="Every agent in the run, each in its own container with a real browser. Open one to watch it work." actions={picker} runBar={run ? <RunBar run={run} active="agents" /> : undefined}>
       {noRuns ? (
         <Empty title="No runs yet">
           Agents appear here once a test is running. <Link to="/tools" style={{ color: C.green }}>Start a run from Tools</Link> and come back to watch them.

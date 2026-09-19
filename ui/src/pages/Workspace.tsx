@@ -54,7 +54,7 @@ export default function Workspace() {
 
   if (runs == null) {
     return (
-      <Page title="Workspace" subtitle="Every test you have run, and where each one stands." actions={newTest}>
+      <Page title="Home" subtitle="Every test you have run, and where each one stands." actions={newTest}>
         {error ? <Empty title="Could not load runs">{error}</Empty> : <Empty title="Loading runs…" />}
       </Page>
     );
@@ -72,8 +72,35 @@ export default function Workspace() {
   const link = { color: C.green, textDecoration: 'none', fontSize: 12 };
 
   return (
-    <Page title="Workspace" subtitle="Every test you have run, and where each one stands." actions={newTest}>
+    <Page title="Home" subtitle="Every test you have run, and where each one stands." actions={newTest}>
       {error && <div role="alert" style={{ color: C.yellow, fontSize: 12, marginBottom: 12 }}>The list may be out of date: {error}</div>}
+
+      {ordered.find(isLive) ? (
+        <Link to={`/tools?run=${ordered.find(isLive)!.run_id}`} className="card" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', marginBottom: 16, textDecoration: 'none', color: C.text, borderColor: 'rgba(250,204,21,0.4)' }}>
+          <span style={{ display: 'flex', gap: 10, alignItems: 'center' }}><span className="dot-yellow" style={{ animation: 'pp-pulse 1.4s ease-in-out infinite' }} /><b style={{ fontSize: 14 }}>A test is running right now</b><span style={{ color: C.muted2, fontSize: 13 }}>Agents are working through the site.</span></span>
+          <span style={{ color: C.green, fontSize: 13, fontWeight: 600 }}>Watch it live →</span>
+        </Link>
+      ) : null}
+
+      <div className="card" style={{ padding: 16, marginBottom: 24 }}>
+        <SectionLabel>How a test works</SectionLabel>
+        <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
+          {[
+            ['Set up', 'Pick personas and the two designs to compare. The quick demo is preselected.', '/tools', 'New test'],
+            ['Watch live', 'Each persona gets a real browser. See every click, thought and frustration as it happens.', ordered[0] ? `/tools?run=${ordered[0].run_id}` : '/tools', ordered[0] ? 'Latest run' : ''],
+            ['Read the verdict', 'Metrics computed in code, issues with screenshot evidence, and an evaluator you can question.', ordered[0] ? `/insights?run=${ordered[0].run_id}` : '/insights', ordered[0] ? 'Latest verdict' : ''],
+          ].map(([title, text, to, cta], i) => (
+            <li key={title} style={{ display: 'flex', gap: 10 }}>
+              <span className="mono" style={{ flex: 'none', width: 22, height: 22, borderRadius: '50%', border: `1px solid ${C.border2}`, color: C.green, fontSize: 11, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{title}</div>
+                <div style={{ fontSize: 12, color: C.muted2, margin: '2px 0 4px', lineHeight: 1.5 }}>{text}</div>
+                {cta && <Link to={to} style={{ color: C.green, fontSize: 12, textDecoration: 'none' }}>{cta} →</Link>}
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginBottom: 32 }}>
         <Stat label="Runs" value={String(runs.length)} note={liveCount > 0 ? `${liveCount} live now` : `${finished} finished`} />

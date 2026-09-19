@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { fmtTokens, sessionList, type RunState, type SessionState } from '../../lib/api';
-import { C, KindTag, PatienceBar, RunStatusTag, Screenshot, SessionTag, Tag, stepLabel } from '../../lib/ui';
+import { C, KindTag, PatienceBar, Screenshot, SessionTag, Tag, stepLabel } from '../../lib/ui';
 
 const CSS = `
 .pp-agent { display: flex; flex-direction: column; color: inherit; text-decoration: none; padding: 14px; min-width: 0; transition: border-color 0.15s, background 0.15s; }
@@ -43,21 +43,16 @@ export default function MonitorStage({ run, pollError }: { run: RunState; pollEr
         <Banner tone={C.green} title={run.verdict.winner === 'no clear winner' ? 'No clear winner' : `${winnerName(run.verdict.winner)} wins`}
           aside={<Tag tone={run.verdict.confidence === 'high' ? 'green' : run.verdict.confidence === 'medium' ? 'yellow' : 'muted'}>{run.verdict.confidence} confidence</Tag>}>
           <span className="pp-clamp" style={{ WebkitLineClamp: 4 }}>{run.verdict.rationale}</span>
-          <Link to={insights} style={{ color: C.green, fontSize: 13, fontWeight: 500, display: 'inline-block', marginTop: 8 }}>Open insights</Link>
+          <Link to={insights} style={{ color: C.green, fontSize: 13, fontWeight: 500, display: 'inline-block', marginTop: 8 }}>Read the full verdict →</Link>
         </Banner>
       )}
 
       <div className="card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 20px', padding: '10px 14px', marginBottom: 20 }}>
-        <span className="mono" style={{ fontSize: 12, color: C.text, overflowWrap: 'anywhere' }}>{run.run_id}</span>
-        <RunStatusTag status={run.status} />
         <Count n={running} label="running" />
         <Count n={finished} of={sessions.length} label="finished" />
         <Count n={completed} label="completed the goal" />
         {tokens != null && <span className="mono" style={{ fontSize: 12, color: C.muted2 }}><span style={{ color: C.text }}>{fmtTokens(tokens)}</span> tokens</span>}
         <span style={{ flex: 1 }} />
-        {done
-          ? <Link to={insights} className="btn-secondary" style={{ textDecoration: 'none', fontSize: 12, padding: '5px 12px' }}>Open insights</Link>
-          : <span aria-disabled="true" title="Available when the run has finished" className="btn-secondary" style={{ fontSize: 12, padding: '5px 12px', opacity: 0.5, cursor: 'not-allowed' }}>Open insights</span>}
       </div>
 
       {pollError && <div role="alert" style={{ color: C.yellow, fontSize: 12, marginBottom: 12 }}>Connection problem, retrying: {pollError}</div>}

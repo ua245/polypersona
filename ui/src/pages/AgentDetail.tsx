@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import { fmtTokens, sessionList, useRun, useSelectedRunId, videoUrl, type ExitSurvey, type Observation, type SessionState, type Step } from '../lib/api';
-import { C, Empty, KindTag, Page, PatienceBar, Screenshot, SectionLabel, SessionTag, Tag, stepLabel } from '../lib/ui';
+import { C, Empty, KindTag, Page, PatienceBar, RunBar, Screenshot, SectionLabel, SessionTag, Tag, stepLabel } from '../lib/ui';
 
 const isDeadClick = (s: Step) => s.action === 'click' && !s.changed;
 
@@ -167,6 +167,13 @@ export default function AgentDetail() {
     [run, session],
   );
 
+  // Previous / next agent in the run, so you can walk through all of them without going back to the grid.
+  const ordered = sessionList(run);
+  const at = session ? ordered.findIndex((s) => s.session_id === session.session_id) : -1;
+  const agentLink = (s: { session_id: string }) => `/populations/${encodeURIComponent(s.session_id)}?run=${encodeURIComponent(runId ?? '')}`;
+  const prevAgent = at > 0 ? ordered[at - 1] : null;
+  const nextAgent = at >= 0 && at < ordered.length - 1 ? ordered[at + 1] : null;
+
   const backTo = `/populations${runId ? `?run=${encodeURIComponent(runId)}` : ''}`;
   const back = <Link to={backTo} className="btn-ghost" style={{ textDecoration: 'none', paddingLeft: 0 }}>← All agents</Link>;
 
@@ -194,11 +201,14 @@ export default function AgentDetail() {
 
   return (
     <Page
+      runBar={<RunBar run={run} active="agents" />}
       title={session.persona}
       subtitle={<span>variant {session.variant.toUpperCase()} · {session.device} · <span className="mono">{session.session_id}</span> in run <span className="mono">{run.run_id}</span></span>}
       actions={
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           {back}
+          {prevAgent && <Link to={agentLink(prevAgent)} className="btn-ghost" style={{ textDecoration: 'none' }} title={`${prevAgent.persona}, variant ${prevAgent.variant.toUpperCase()}`}>‹ Previous agent</Link>}
+          {nextAgent && <Link to={agentLink(nextAgent)} className="btn-ghost" style={{ textDecoration: 'none' }} title={`${nextAgent.persona}, variant ${nextAgent.variant.toUpperCase()}`}>Next agent ›</Link>}
           {siblings.map((s) => (
             <Link key={s.session_id} to={`/populations/${encodeURIComponent(s.session_id)}?run=${encodeURIComponent(run.run_id)}`} className="btn-secondary" style={{ textDecoration: 'none' }}>
               Compare with variant {s.variant.toUpperCase()} →

@@ -1,15 +1,17 @@
 // Shared building blocks. Pages compose these so every screen reads as one product.
 import { useState, type CSSProperties, type ReactNode } from 'react';
-import { ApiError, getToken, shotUrl, signIn, signOut, type ObservationKind, type Outcome, type RunStatus, type SessionState, type Step } from './api';
+import { Link } from 'react-router';
+import { ApiError, fmtTime, getToken, sessionList, shotUrl, signIn, signOut, type RunState, type ObservationKind, type Outcome, type RunStatus, type SessionState, type Step } from './api';
 
 export const C = {
   bg: '#09090e', surface: '#111318', surface2: '#181b22', border: '#1e2230', border2: '#252a38',
   green: '#4ade80', yellow: '#facc15', red: '#f87171', blue: '#60a5fa', text: '#e8eaf0', muted: '#6b7280', muted2: '#9ca3af',
 };
 
-export function Page({ title, subtitle, actions, children }: { title: string; subtitle?: ReactNode; actions?: ReactNode; children: ReactNode }) {
+export function Page({ title, subtitle, actions, runBar, children }: { title: string; subtitle?: ReactNode; actions?: ReactNode; runBar?: ReactNode; children: ReactNode }) {
   return (
     <div style={{ maxWidth: 1360, margin: '0 auto', padding: '28px 24px 64px' }}>
+      {runBar}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em' }}>{title}</h1>
@@ -54,6 +56,49 @@ export function SessionTag({ s }: { s: Pick<SessionState, 'status' | 'outcome'> 
 export const KIND_TONE: Record<ObservationKind, 'red' | 'yellow' | 'green' | 'blue'> = { bug: 'red', friction: 'yellow', confusion: 'yellow', delight: 'green', opinion: 'blue' };
 export function KindTag({ kind, severity }: { kind: ObservationKind; severity?: number }) {
   return <Tag tone={KIND_TONE[kind]}>{kind}{severity != null ? ` · ${severity}` : ''}</Tag>;
+}
+
+/**
+ * The three places a run lives, in the order you use them. Shown on every run page so the way forward
+ * (and back) is always one click, and the run you are looking at never changes underneath you.
+ */
+export function RunBar({ run, active }: { run: RunState; active: 'watch' | 'agents' | 'results' }) {
+  const sessions = sessionList(run);
+  const done = sessions.filter((s) => s.status === 'finished').length;
+  const ready = run.status === 'finished' && run.verdict != null;
+  const q = `?run=${run.run_id}`;
+  const tabs: { key: typeof active; n: number; label: string; to: string; hint: string }[] = [
+    { key: 'watch', n: 1, label: 'Watch live', to: `/tools${q}`, hint: run.status === 'finished' ? 'replay the monitor' : `${done}/${sessions.length} agents finished` },
+    { key: 'agents', n: 2, label: 'Inspect agents', to: `/populations${q}`, hint: `${sessions.length} agents, step by step` },
+    { key: 'results', n: 3, label: 'Read the verdict', to: `/insights${q}`, hint: ready ? `winner: ${run.verdict!.winner}` : run.status === 'evaluating' ? 'evaluator is judging…' : 'ready when all agents finish' },
+  ];
+  return (
+    <div className="card" style={{ padding: 10, marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '0 8px', minWidth: 0 }}>
+        <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span className="mono" style={{ fontSize: 12, color: C.muted2 }}>{run.run_id}</span><RunStatusTag status={run.status} /></span>
+        <span style={{ fontSize: 11, color: C.muted }}>{fmtTime(run.created_at)}</span>
+      </div>
+      <nav aria-label="Run steps" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 6, flex: '1 1 520px' }}>
+        {tabs.map((t) => {
+          const on = t.key === active;
+          const nudge = t.key === 'results' && ready && !on; // the verdict is in: point at it
+          return (
+            <Link key={t.key} to={t.to} aria-current={on ? 'page' : undefined} style={{
+              textDecoration: 'none', color: C.text, padding: '8px 12px', borderRadius: 6, minWidth: 0,
+              background: on ? C.surface2 : 'transparent', border: `1px solid ${on ? C.green : nudge ? 'rgba(74,222,128,0.45)' : C.border}`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600 }}>
+                <span className="mono" style={{ fontSize: 11, color: on ? C.green : C.muted2 }}>{t.n}</span>{t.label}
+                {nudge && <span className="dot-green" style={{ animation: 'pp-pulse 1.4s ease-in-out infinite' }} />}
+              </div>
+              <div style={{ fontSize: 11, color: nudge ? C.green : C.muted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.hint}</div>
+            </Link>
+          );
+        })}
+      </nav>
+      <Link to="/tools" className="btn-secondary" style={{ textDecoration: 'none', fontSize: 12, padding: '6px 12px', whiteSpace: 'nowrap' }}>New test</Link>
+    </div>
+  );
 }
 
 /** Patience left, as a bar that turns red when nearly spent. */

@@ -1,17 +1,17 @@
 // /tools — Test setup → Orchestration → Journey monitor.
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { fmtTokens, sessionList, useRun, type RunState } from '../lib/api';
-import { C, Empty, Page, RunStatusTag } from '../lib/ui';
+import { sessionList, useRun, type RunState } from '../lib/api';
+import { C, Empty, Page, RunBar } from '../lib/ui';
 import SetupStage from './tools/SetupStage';
 import OrchestrationStage from './tools/OrchestrationStage';
 import MonitorStage from './tools/MonitorStage';
 
 type Stage = 1 | 2 | 3;
 const STAGES: { n: Stage; label: string; hint: string }[] = [
-  { n: 1, label: 'Test setup', hint: 'Personas, target, repeats' },
-  { n: 2, label: 'Orchestration', hint: 'One container per session' },
-  { n: 3, label: 'Journey monitor', hint: 'Every agent, live' },
+  { n: 1, label: 'Set up', hint: 'Who tests what' },
+  { n: 2, label: 'Launch', hint: 'One container per agent' },
+  { n: 3, label: 'Watch live', hint: 'Every agent, side by side' },
 ];
 
 /** Stage the run is naturally in: fan-out until any session has started, then the monitor. */
@@ -39,17 +39,11 @@ export default function Tools() {
 
   return (
     <Page
-      title="Run a test"
-      subtitle="Set up a comparison, watch it fan out to containers, then follow every agent as it works through the site."
-      actions={runId && run && stage !== 3 ? (
-        <>
-          <span className="mono" style={{ fontSize: 12, color: C.muted2 }}>{run.run_id}</span>
-          <RunStatusTag status={run.status} />
-          {run.tokens?.total != null && <span className="mono" style={{ fontSize: 12, color: C.muted }}>{fmtTokens(run.tokens.total)} tokens</span>}
-        </>
-      ) : undefined}
+      title={runId ? 'Live test' : 'New test'}
+      subtitle={runId ? 'Every agent, variants side by side. Click an agent to look over its shoulder.' : 'Choose who tests what. Agents start within seconds and you watch them work.'}
     >
-      <nav aria-label="Stages" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginBottom: 24 }}>
+      {runId && run && <RunBar run={run} active="watch" />}
+      {!runId && <nav aria-label="Stages" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginBottom: 24 }}>
         {STAGES.map((s) => {
           const active = s.n === stage;
           const can = reachable(s.n);
@@ -77,7 +71,7 @@ export default function Tools() {
             </button>
           );
         })}
-      </nav>
+      </nav>}
 
       {stage === 1 && <SetupStage showRecent={!runId} />}
 
