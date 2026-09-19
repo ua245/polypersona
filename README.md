@@ -184,6 +184,107 @@ sequenceDiagram
 
 ---
 
+## Partner technologies: what we used and where
+
+Every item below is used in the code in this repository. Paths point to the files that do it.
+
+### Modal: the compute layer (one cloud container per AI persona)
+
+Every persona session runs in **its own Modal container**, with a real Chromium browser and the agent together. Modal also runs the cloud orchestrator and hosts the HTTP API that the UI calls.
+
+| Modal feature | What we use it for | Where |
+|---|---|---|
+| `modal.Image` | A custom image with Pydantic AI, Logfire, Playwright and **Chromium preinstalled**, plus our demo shop and Python package, so every container starts ready to browse | `modal_app.py` |
+| `@app.function` (`run_session_remote`) | **One isolated container per persona × variant × repeat.** The agent and the browser run in it, and the report, screenshots and screen recording are returned | `modal_app.py` |
+| `.starmap.aio(...)` | Runs the whole matrix in parallel (up to `max_containers=20`), yielding each session as it finishes | `polypersona/orchestrator.py` |
+| `modal.Queue.ephemeral()` | Every step and screenshot **streams out of the containers live**, so the dashboard updates while agents are still browsing | `polypersona/orchestrator.py`, `modal_app.py` |
+| `modal.Dict` (`polypersona-runs`) | Shared run state that every container and the API can read: live progress, screenshots, reports, the test index, and messages from an observer to guide or stop an agent | `polypersona/cloud.py`, `polypersona/live.py` |
+| `run_experiment` + `.spawn.aio()` | Starting a test from the UI launches the **whole run in the cloud**; no laptop needs to stay on | `modal_app.py`, `polypersona/cloud.py` |
+| `@modal.asgi_app()` + `@modal.concurrent` | The FastAPI **HTTP API** for the React UI (tests, live state, screenshots, recordings, the evaluator's Q&A, persona generation), 50 requests per container, scaling to zero | `modal_app.py`, `polypersona/cloud.py` |
+| `modal.Secret.from_dotenv` | Sends the keys (Gemini, Gateway, Logfire) to the containers without putting them in the image | `modal_app.py` |
+
+```python
+@app.function(secrets=secrets, timeout=900, max_containers=20)
+async def run_session_remote(persona_json, task_json, repeat, events=None, control_key=None):
+    report, shots, video = await run_session(...)   # agent + Chromium in this container
+
+async for item in run_session_remote.starmap.aio(args, order_outputs=False, return_exceptions=True):
+    ...                                            # every persona session in parallel
+```
+
+A crashed container becomes a session with `outcome="error"`; the steps it already streamed are kept and the run continues.
+
+### Pydantic AI: the agents
+
+Three kinds of agent, all built with Pydantic AI and typed with Pydantic models.
+
+**1. Persona agent** (`polypersona/persona_agent.py`): a person using the website.
+- `Agent(deps_type=SessionDeps, output_type=ExitSurvey)`. `SessionDeps` binds each agent to *its own* browser, persona, task and recorder. The run must end with a typed **exit survey** (ease, trust, would return, summary).
+- **Tools:** `click`, `type_text`, `scroll`, `press_key`, `go_back` and `record_observation`. Each browser tool returns a `ToolReturn` with a fresh screenshot as `BinaryContent`, so the model **sees the page after every action**.
+- **Dynamic instructions** (`@persona_agent.instructions`) turn the persona's age, tech savviness, patience and reading style into behaviour. Agents are never told they are in an A/B test.
+- **Capabilities:** `ProcessHistory` keeps only the last few screenshots in context, which controls cost.
+- **Limits:** patience is a hard action budget enforced in the tool layer, and `UsageLimits(request_limit=...)` caps model calls (`polypersona/session.py`).
+- **Card data stays on our side:** the model types `{card number}` and the tool fills in the real value, so card numbers never go to the model.
+
+**2. Evaluator agent** (`polypersona/evaluator.py`): the judge.
+- `output_type=EvaluatorReport` returns a typed verdict: the winner or "no clear winner", confidence, issues, suggestions, notes and caveats.
+- Metrics are computed **in code** first (`polypersona/metrics.py`). The evaluator interprets them and must cite `session#step` evidence for every issue.
+- The `get_screenshot` tool lets it open any cited screenshot. The same agent answers follow-up questions (`ask`).
+
+**3. Persona generators** (`polypersona/personas.py`, `polypersona/population.py`): `output_type=list[Persona]` turns an audience description, or a CSV of real customers, into a validated panel of personas.
+
+**Pydantic models** (`polypersona/models.py`) define everything that crosses a boundary: `Persona`, `TestTask`, `StepRecord`, `Observation`, `ExitSurvey`, `SessionReport`, `VariantMetrics`, `Issue`, `Suggestion`, `EvaluatorReport`. Sessions are sent between Modal and the laptop as validated JSON.
+
+### Pydantic AI Gateway: every persona call goes through it
+
+`polypersona/llm.py` → `make_model()` reads one setting per role. `PERSONA_MODEL=gateway/persona:gemini-3.8-flash` sends every persona call through the Gateway endpoint **`persona`**:
+
+```python
+OpenAIChatModel("gemini-3.8-flash", provider=gateway_provider("openai-chat", route="persona", http_client=...))
+```
+
+- **Provider:** Gemini is added in the Gateway as a **BYOK Custom provider** (Gemini's OpenAI-compatible API), so the key lives in the Gateway. The organisers approved this in place of a Modal endpoint.
+- **Thought signatures:** Gemini 3 requires each tool call's "thought signature" to be sent back; the OpenAI format drops it. `GeminiThoughtSignatures`, an httpx transport in `llm.py`, stores the signatures and sends them back, so multi-step tool use works through the Gateway.
+- **Retries:** it also retries `gateway_guardrail_timeout` responses, which are safe to repeat because nothing was forwarded.
+- **Our custom optimization rule, "UX evidence protocol"** (Style, bound to `persona`, no code change): every observation must start with the exact on-screen text it is about. **Measured on the same 6 sessions: observations leading with the quoted element rose from 0–12% to 100%, and reasoning got about 35% shorter, with no loss of the planted flaws found** (`scripts/flaw_recall.py`).
+- **Our guardrail, "Payment card number"** (custom regex, **Redact**, on `persona`): in an echo test the model returned `my card is [REDACTED]`. The Gateway's response header is `x-pydantic-gateway-guardrails-applied: Payment_card_number=1/1;redact`. Near-misses such as phone numbers, ZIP codes, CVCs and dates pass through unchanged (`scripts/gateway_check.py`, 7 of 7 cases).
+
+### Logfire: tracing
+
+`polypersona/tracing.py`, called when the package is imported, runs locally and inside every Modal container:
+
+```python
+logfire.configure(send_to_logfire="if-token-present", service_name="polypersona", scrubbing=...)
+logfire.instrument_pydantic_ai()   # every agent run, model call and tool call
+```
+
+- **Session spans:** each session is wrapped in a `persona session <id>` span (`polypersona/session.py`), so every test is easy to find in Logfire, including the before/after traces for the rule.
+- **Scrubbing:** the scrubbing callback keeps harmless words like "session" readable; everything else uses Logfire's default scrubbing.
+- **Gateway:** the Gateway itself (spending, and usage of the rule and guardrail) is monitored in the same Logfire project.
+
+### Google Gemini: the model
+
+- **Personas:** `gemini-3.8-flash`, which is multimodal. It reads screenshots and calls the tools.
+- **Evaluator:** `gemini-pro-latest`.
+- **Configuration:** both are set by `PERSONA_MODEL` / `EVALUATOR_MODEL`. Direct calls back off on 429/5xx errors, because all agents share one quota.
+
+### Playwright + Chromium: the browser
+
+`polypersona/browser.py`, one real headless Chromium per session:
+- **Coordinates:** clicks and typing on a 0–1000 grid over the screenshot; mobile personas tap.
+- **Change detection** is based on the DOM and form state, so a "dead click" is one that changed nothing.
+- **Evidence:** a screen recording (webm) and one screenshot per step.
+- **Verified completion:** success is checked in code, from the final URL, visible text or a CSS selector, rather than taken from the agent.
+
+### Cloudflare Pages: the web app
+
+The React + Vite + Tailwind UI in `ui/` is deployed to Cloudflare Pages (`ui/wrangler.jsonc`) and calls the Modal-hosted API. Main screens:
+- **Live crowd view:** agents walk through the journey stages.
+- **Agent detail,** with a full-screen viewer.
+- **Tests analytics.**
+- **Results,** with **PDF and Markdown report export**.
+- **Themes:** light and dark, with five accent colours.
+
 ## Getting Started
 
 ### Prerequisites
