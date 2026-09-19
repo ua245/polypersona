@@ -1,7 +1,7 @@
 // Client for the Polypersona API (FastAPI on Modal). All pages go through this file.
 import { useEffect, useRef, useState } from 'react';
 
-export const API_URL: string = (import.meta.env.VITE_API_URL as string | undefined) ?? 'https://shehrum--polypersona-web.modal.run';
+export const API_URL: string = (import.meta.env?.VITE_API_URL as string | undefined) ?? 'https://shehrum--polypersona-web.modal.run';
 
 // ---------- types (mirror polypersona/models.py and live.py) ----------
 export type Device = 'desktop' | 'mobile';
