@@ -133,3 +133,18 @@ def test_customer_viewport_is_clamped_for_the_browser():
     assert (BrowserSession("desktop", "2560x1440").width, BrowserSession("desktop", "2560x1440").height) == (1440, 900)
     assert BrowserSession("mobile", "390x844").width == 390
     assert BrowserSession("desktop", "nonsense").width == 1280
+
+
+def test_site_alerts_are_kept_accepted_and_count_as_success():
+    from polypersona.models import TestTask
+
+    async def scenario():
+        async with BrowserSession("desktop") as b:
+            await b.page.set_content("<button onclick=\"alert('Account created! Please check your email.')\">Create Account</button>")
+            await b.page.click("button")  # would hang forever if the dialog were not handled
+            assert b.new_dialogs() == ["Account created! Please check your email."] and b.new_dialogs() == []
+            task = TestTask(variant_id="b", url="x", goal="g", success_text_contains="Payment successful|Account created")
+            assert await b.check_success(task) is True
+            assert await b.check_success(task.model_copy(update={"success_text_contains": "Order confirmed"})) is False
+
+    asyncio.run(scenario())
