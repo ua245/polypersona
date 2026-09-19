@@ -157,7 +157,10 @@ async def _act(ctx: RunContext[SessionDeps], action: str, args: dict, reasoning:
         note = await do() or ""
     except Exception as exc:
         error = f"{type(exc).__name__}: {str(exc).splitlines()[0][:200]}"
-    changed = await deps.browser.fingerprint() != before
+    dialogs = deps.browser.new_dialogs()
+    changed = await deps.browser.fingerprint() != before or bool(dialogs)  # a pop-up message is a visible change
+    if dialogs:
+        note = f"{note}; the site showed a message: {' / '.join(dialogs)}".lstrip("; ")
     image = await deps.browser.screenshot()
     step = deps.recorder.add(action, args, reasoning, deps.browser.url, image, changed=changed, note=error or note)
     await deps.emit({"type": "step", "step": step.model_dump(), "image": image, "actions_left": deps.actions_left})
@@ -166,6 +169,8 @@ async def _act(ctx: RunContext[SessionDeps], action: str, args: dict, reasoning:
     lines = [f"URL: {deps.browser.url}.", "The page changed." if changed else "Nothing on the page changed."]
     if error:
         lines.append(f"That did not work: {error}")
+    for message in dialogs:
+        lines.append(f'A pop-up message from the site appeared and you pressed OK: "{message}"')
     lines.append(f"{left} actions of patience left." if left > 0 else "Your patience has run out. Stop and return the exit survey now.")
     message = await deps.control() if deps.control else None
     if message and message.get("stop"):

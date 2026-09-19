@@ -20,6 +20,18 @@ Result = tuple[SessionReport, list[bytes], bytes | None]
 OnResult = Callable[[Result], Awaitable[None]]
 
 
+# What a person has to hand when a real site asks for it. Card keys match PRIVATE_FIXTURES, so the model never sees them.
+SITE_FIXTURES = {
+    "full name": "use your own name",
+    "work email": "use firstname.lastname@ your company's domain, e.g. jo.smith@acme.io",
+    "company name": "use the company from your bio, or make up a plausible one",
+    "password": "make one up that a careful person would use",
+    "card number": "4242 4242 4242 4242",
+    "card expiry": "09/28",
+    "card CVC": "314",
+}
+
+
 class RunConfig(BaseModel):
     name: str | None = None  # what the person called this test
     persona_ids: list[str] | None = None  # built-in personas by id; None means the first `personas`
@@ -33,6 +45,7 @@ class RunConfig(BaseModel):
     success_url: str | None = None
     success_text: str | None = None
     success_selector: str | None = None
+    fixtures: dict[str, str] | None = None  # details personas may type on your own site; sensible defaults otherwise
     repeats: int = 1
 
 
@@ -47,7 +60,8 @@ async def plan(config: RunConfig) -> list[Job]:
         personas = DEFAULT_PERSONAS[: config.personas]
     if config.url_a and config.url_b and config.goal:
         checks = dict(success_url_contains=config.success_url, success_text_contains=config.success_text, success_selector=config.success_selector)
-        tasks = [TestTask(variant_id=v, url=u, goal=config.goal, **checks) for v, u in (("a", config.url_a), ("b", config.url_b))]
+        fixtures = config.fixtures if config.fixtures is not None else SITE_FIXTURES
+        tasks = [TestTask(variant_id=v, url=u, goal=config.goal, fixtures=fixtures, **checks) for v, u in (("a", config.url_a), ("b", config.url_b))]
     else:
         tasks = demo_tasks(config.variants)
     return [(p, t, r) for p in personas for t in tasks for r in range(config.repeats)]

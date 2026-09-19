@@ -1,4 +1,4 @@
-// New test: one screen, three decisions (what to compare, who tests it, a name), one button.
+// New test: one screen, three decisions (the two URLs and the goal, who tests it, a name), one button.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { fmtTokens, getPersonas, loadCustomPersonas, startRun, type Persona, type RunConfig } from '../lib/api';
@@ -9,11 +9,7 @@ import PersonaPicker, { PersonaDetail, type PickablePersona } from './newtest/Pe
 
 type Compare = 'dark' | 'redesign' | 'site';
 const COMPARE: { id: Compare; title: string; blurb: string; tag: string; variants?: string[]; autoName: string }[] = [
-  { id: 'dark', title: 'Clean vs dark patterns', tag: 'Demo shop · A vs B', variants: ['a', 'b'], autoName: 'Checkout: clean vs dark patterns',
-    blurb: 'A clean guest checkout against one with a popup, forced account, a hidden fee and a real bug.' },
-  { id: 'redesign', title: 'Clean vs redesign', tag: 'Demo shop · A vs C', variants: ['a', 'c'], autoName: 'Checkout: clean vs redesign',
-    blurb: 'A subtler call: a faster redesign that pre-ticks a subscription.' },
-  { id: 'site', title: 'Your own site', tag: 'Any two URLs', autoName: 'My site: A vs B',
+  { id: 'site', title: 'Two versions of your site', tag: 'Any two URLs', autoName: 'My site: A vs B',
     blurb: 'Point the panel at two live URLs and tell them what to try to do.' },
 ];
 const DEMO_GOAL = 'buy one 250g bag of Ethiopia Yirgacheffe coffee and have it shipped home.';
@@ -31,7 +27,7 @@ export default function NewTest() {
   const [custom] = useState<Persona[]>(() => { const c = loadCustomPersonas(); return Array.isArray(c) ? c : []; });
   const [selected, setSelected] = useState<Set<string>>(new Set()); // "b:<id>" built-in, "c:<id>" custom
 
-  const [compare, setCompare] = useState<Compare>('dark');
+  const [compare, setCompare] = useState<Compare>('site');
   const [urlA, setUrlA] = useState('');
   const [urlB, setUrlB] = useState('');
   const [goal, setGoal] = useState('');
@@ -144,20 +140,6 @@ export default function NewTest() {
 
           <form onSubmit={(e) => e.preventDefault()} style={{ display: 'grid', gap: 36, minWidth: 0 }}>
             <Section n="1" title="What to compare">
-              <div role="radiogroup" aria-label="What to compare" className="nt-cards">
-                {COMPARE.map((c) => (
-                  <label key={c.id} className="nt-radio" data-on={compare === c.id}>
-                    <input type="radio" name="nt-compare" value={c.id} checked={compare === c.id} onChange={() => setCompare(c.id)} />
-                    <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                      <span className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: compare === c.id ? C.green : C.muted }}>{c.tag}</span>
-                      <RadioDot on={compare === c.id} />
-                    </span>
-                    <span style={{ display: 'block', fontSize: 15, fontWeight: 600, marginTop: 14, letterSpacing: '-0.01em' }}>{c.title}</span>
-                    <span style={{ display: 'block', fontSize: 13, color: C.muted2, marginTop: 6, lineHeight: 1.5 }}>{c.blurb}</span>
-                  </label>
-                ))}
-              </div>
-
               {compare !== 'site' ? (
                 <p style={{ margin: '14px 0 0', fontSize: 13, color: C.muted, lineHeight: 1.5 }}><span style={{ color: C.muted2 }}>Goal:</span> {DEMO_GOAL}</p>
               ) : (

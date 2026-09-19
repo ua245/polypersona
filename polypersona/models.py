@@ -30,7 +30,7 @@ class TestTask(BaseModel):
     fixtures: dict[str, str] = Field(default_factory=dict, description="Data the persona may type, e.g. address, card.")
     # Completion is verified in code. Every check that is set must pass; with none set, the persona's own claim is used.
     success_url_contains: str | None = None
-    success_text_contains: str | None = Field(default=None, description="Text that must be visible on the final page.")
+    success_text_contains: str | None = Field(default=None, description="Text that must appear on the final page or in a pop-up message. Separate alternatives with '|'.")
     success_selector: str | None = Field(default=None, description="CSS selector that must exist on the final page.")
 
     @property
@@ -39,7 +39,7 @@ class TestTask(BaseModel):
         if self.success_url_contains:
             checks.append(f"final URL contains '{self.success_url_contains}'")
         if self.success_text_contains:
-            checks.append(f"final page shows the text '{self.success_text_contains}'")
+            checks.append(f"the site showed the text '{self.success_text_contains}' (on the page or in a pop-up message)")
         if self.success_selector:
             checks.append(f"final page has an element matching '{self.success_selector}'")
         return "verified in code: " + " and ".join(checks) if checks else "self-reported by the persona (no check configured)"

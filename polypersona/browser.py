@@ -70,6 +70,8 @@ class BrowserSession:
         self._browser: Browser | None = None
         self._video_dir = tempfile.mkdtemp(prefix="pp-video-")
         self.video: bytes | None = None  # webm of the whole session, available after the session closes
+        self.dialogs: list[str] = []  # every alert/confirm/prompt the site showed, in order
+        self._dialogs_read = 0
         self.page: Page | None = None
 
     async def __aenter__(self) -> "BrowserSession":
@@ -84,7 +86,21 @@ class BrowserSession:
         )
         await context.add_init_script(CURSOR_JS)
         self.page = await context.new_page()
+        self.page.on("dialog", self._on_dialog)
         return self
+
+    async def _on_dialog(self, dialog) -> None:
+        """Sites often confirm a signup or an error with a native alert. Keep its text and press OK, as a person would."""
+        self.dialogs.append(dialog.message)
+        try:
+            await dialog.accept()
+        except Exception:
+            pass
+
+    def new_dialogs(self) -> list[str]:
+        """Dialog messages that have appeared since this was last called."""
+        fresh, self._dialogs_read = self.dialogs[self._dialogs_read :], len(self.dialogs)
+        return fresh
 
     async def __aexit__(self, *exc) -> None:
         try:
@@ -187,7 +203,9 @@ class BrowserSession:
         if task.success_url_contains:
             results.append(task.success_url_contains in self.url)
         if task.success_text_contains:
-            results.append(task.success_text_contains.lower() in (await self.page.evaluate("document.body ? document.body.innerText : ''")).lower())
+            # Any of the "|"-separated alternatives counts, on the page or in a dialog the site showed.
+            seen = ((await self.page.evaluate("document.body ? document.body.innerText : ''")) + "\n" + "\n".join(self.dialogs)).lower()
+            results.append(any(alt.strip().lower() in seen for alt in task.success_text_contains.split("|") if alt.strip()))
         if task.success_selector:
             results.append(await self.page.locator(task.success_selector).count() > 0)
         return all(results) if results else None
