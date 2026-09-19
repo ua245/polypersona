@@ -1,8 +1,5 @@
 <p align="center">
-  <img src="logo.svg" alt="PolyPersona Logo (SVG)" width="220" />
-</p>
-<p align="center">
-  <img src="assets/polypersona-banner.png" alt="PolyPersona Brand Banner" width="220" />
+  <img src="logo.svg" alt="PolyPersona Logo" width="240" />
 </p>
 
 <h1 align="center">PolyPersona</h1>
@@ -26,16 +23,9 @@
 
 Operating inside isolated cloud containers with real Chromium browsers, persona agents navigate your site, attempt assigned user goals, think out loud, and capture real-time observations of friction, bugs, confusion, and delight. After the test runs, an AI Evaluator synthesizes metrics computed deterministically in code alongside screenshot evidence to declare an empirical winner, highlight core friction areas, and provide actionable UX recommendations.
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                              PolyPersona                               │
-├─────────────────────┬──────────────────────────┬───────────────────────┤
-│  Browser Automation │    Behavioral Personas   │    Evidence Engine    │
-│  Playwright + async │  Calibrated patience,    │  Dead-click detection,│
-│  0–1000 coordinate  │  viewport sizes, device  │  backtracks, visual   │
-│  grid interaction   │  profiles & reading styles│  filmstrips & videos  │
-└─────────────────────┴──────────────────────────┴───────────────────────┘
-```
+| Browser Automation | Behavioral Personas | Evidence Engine |
+| :--- | :--- | :--- |
+| **Playwright + async**<br>Normalized 0–1000 coordinate grid<br>In-process DOM change detection | **Calibrated patience**<br>Hard action budgets (8–40 steps)<br>Device profiles & reading styles | **Dead-click detection**<br>Backtracks & session friction<br>Visual filmstrips & video replays |
 
 ---
 
