@@ -34,6 +34,7 @@ SITE_FIXTURES = {
 
 class RunConfig(BaseModel):
     name: str | None = None  # what the person called this test
+    objective: str | None = None  # what the site owner is trying to improve, e.g. 'more free trial signups'
     persona_ids: list[str] | None = None  # built-in personas by id; None means the first `personas`
     personas: int = 1
     audience: str | None = None  # generate `personas` personas for this audience instead
@@ -45,6 +46,7 @@ class RunConfig(BaseModel):
     success_url: str | None = None
     success_text: str | None = None
     success_selector: str | None = None
+    access_headers: dict[str, str] | None = None  # sent only to your site, e.g. {"x-polypersona-key": "<secret>"}; add a WAF rule that skips the challenge for it
     fixtures: dict[str, str] | None = None  # details personas may type on your own site; sensible defaults otherwise
     repeats: int = 1
 
@@ -58,13 +60,21 @@ async def plan(config: RunConfig) -> list[Job]:
         personas = [p for p in DEFAULT_PERSONAS if p.id in config.persona_ids]
     else:
         personas = DEFAULT_PERSONAS[: config.personas]
-    if config.url_a and config.url_b and config.goal:
+    if config.url_a and config.goal:  # one site, or two variants when url_b is also set
         checks = dict(success_url_contains=config.success_url, success_text_contains=config.success_text, success_selector=config.success_selector)
         fixtures = config.fixtures if config.fixtures is not None else SITE_FIXTURES
-        tasks = [TestTask(variant_id=v, url=u, goal=config.goal, fixtures=fixtures, **checks) for v, u in (("a", config.url_a), ("b", config.url_b))]
+        tasks = [TestTask(variant_id=v, url=u, goal=config.goal, fixtures=fixtures, access_headers=config.access_headers or {}, **checks) for v, u in (("a", config.url_a), ("b", config.url_b)) if u]
     else:
         tasks = demo_tasks(config.variants)
     return [(p, t, r) for p in personas for t in tasks for r in range(config.repeats)]
+
+
+def public_config(config: RunConfig) -> dict:
+    """The config as it may be stored and shown: header values are secrets, so only their names survive."""
+    data = config.model_dump()
+    if data.get("access_headers"):
+        data["access_headers"] = {name: "hidden" for name in data["access_headers"]}
+    return data
 
 
 def session_ids(jobs: list[Job]) -> list[str]:
@@ -117,13 +127,13 @@ async def run_on_modal(jobs: list[Job], board: LiveBoard, on_result: OnResult, r
     return sorted(out, key=lambda r: r[0].session_id)
 
 
-async def judge(results: list[Result], board: LiveBoard) -> tuple[list[VariantMetrics], EvaluatorReport | None, dict]:
+async def judge(results: list[Result], board: LiveBoard, objective: str | None = None) -> tuple[list[VariantMetrics], EvaluatorReport | None, dict]:
     reports = [r for r, _, _ in results]
     metrics = compute_metrics(reports)
     verdict, tokens = None, {}
     if any(r.outcome != "error" for r in reports):
         await board.set_status("evaluating", metrics=[m.model_dump() for m in metrics])
-        deps = evaluator.EvalDeps(reports=reports, metrics=metrics, screenshots={r.session_id: s for r, s, _ in results})
+        deps = evaluator.EvalDeps(reports=reports, metrics=metrics, screenshots={r.session_id: s for r, s, _ in results}, objective=objective)
         verdict, usage = await evaluator.evaluate(deps)
         tokens = {"evaluator_input": usage.input_tokens, "evaluator_output": usage.output_tokens}
     return metrics, verdict, tokens

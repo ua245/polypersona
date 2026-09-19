@@ -28,6 +28,7 @@ class TestTask(BaseModel):
     url: str = Field(description="Start URL. 'demo://a' and 'demo://b' serve the bundled demo shop.")
     goal: str
     fixtures: dict[str, str] = Field(default_factory=dict, description="Data the persona may type, e.g. address, card.")
+    access_headers: dict[str, str] = Field(default_factory=dict, description="Headers sent only to the site under test, so its owner can allow these agents through bot protection.")
     # Completion is verified in code. Every check that is set must pass; with none set, the persona's own claim is used.
     success_url_contains: str | None = None
     success_text_contains: str | None = Field(default=None, description="Text that must appear on the final page or in a pop-up message. Separate alternatives with '|'.")
@@ -76,6 +77,7 @@ class ExitSurvey(BaseModel):
 
 class SessionReport(BaseModel):
     session_id: str
+    goal: str = ""  # what the persona was asked to try
     persona: Persona
     variant_id: str
     outcome: Outcome
@@ -117,10 +119,24 @@ class Issue(BaseModel):
     recommendation: str
 
 
+class Suggestion(BaseModel):
+    """One change the site owner should make, judged against what they are trying to achieve."""
+
+    title: str = Field(description="The change, as an instruction: 'Show pricing before the signup form'.")
+    change: str = Field(description="What exactly to build or alter, specific enough for a designer or engineer to act on.")
+    serves_goal: str = Field(description="How this moves the owner's objective or helps people complete the task, in one or two sentences.")
+    impact: Literal["low", "medium", "high"] = Field(description="Expected effect on the objective.")
+    effort: Literal["low", "medium", "high"] = Field(description="Rough cost to implement.")
+    affected_personas: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list, description="References formatted as '<session_id>#<step_idx>'.")
+
+
 class EvaluatorReport(BaseModel):
-    winner: str = Field(description="The variant_id that works best, or 'no clear winner' when the evidence is mixed or too thin.")
+    winner: str = Field(description="The variant_id that works best, or 'no clear winner' when the evidence is mixed or too thin. For a single-site study: 'single site'.")
+    headline: str = Field(default="", description="One short sentence a busy person could act on, e.g. 'People like the demo but will not sign up without pricing.'")
     confidence: Literal["low", "medium", "high"]
     rationale: str
     issues: list[Issue]
+    suggestions: list[Suggestion] = Field(default_factory=list, description="Improvements in priority order, most valuable first.")
     per_persona_notes: list[str]
     caveats: list[str]

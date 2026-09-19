@@ -43,7 +43,7 @@ async def run_session(
     """Run one persona against one variant in a fresh browser. Returns the report, one screenshot per step, and a webm recording."""
     session_id = session_id_for(persona, task, repeat)
     recorder = Recorder()
-    report = SessionReport(session_id=session_id, persona=persona, variant_id=task.variant_id, outcome="error", completion_check=task.completion_check)
+    report = SessionReport(session_id=session_id, persona=persona, variant_id=task.variant_id, outcome="error", completion_check=task.completion_check, goal=task.goal)
     usage = RunUsage()
     server = None
     browser = None
@@ -54,7 +54,7 @@ async def run_session(
         if url.startswith("demo://"):
             server, base = _serve_demo_site()
             url = f"{base}/{url.removeprefix('demo://')}/"
-        browser = BrowserSession(persona.device, persona.viewport)
+        browser = BrowserSession(persona.device, persona.viewport, task.access_headers, url)
         async with browser:
             await browser.goto(url)
             first = await browser.screenshot()

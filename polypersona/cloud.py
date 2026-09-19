@@ -19,7 +19,7 @@ from .live import DictBackend, LiveBoard
 from pydantic import BaseModel
 
 from .models import EvaluatorReport, SessionReport, VariantMetrics
-from .orchestrator import Result, RunConfig, judge, plan, run_on_modal, session_ids
+from .orchestrator import Result, RunConfig, judge, plan, public_config, run_on_modal, session_ids
 from .personas import DEFAULT_PERSONAS, generate_personas
 from .population import personas_from_rows
 
@@ -64,7 +64,7 @@ async def execute(run_id: str, config_json: str, store, run_session_remote) -> N
     board = None
     try:
         jobs = await plan(config)
-        board = LiveBoard(DictBackend(store, run_id), run_id, jobs, session_ids(jobs), "on Modal", config.model_dump())
+        board = LiveBoard(DictBackend(store, run_id), run_id, jobs, session_ids(jobs), "on Modal", public_config(config))
         await board.flush()
         await _index_update(store, run_id, status="running", sessions=len(jobs), personas=sorted({p.name for p, _, _ in jobs}), variants=sorted({t.variant_id for _, t, _ in jobs}))
 
@@ -76,7 +76,7 @@ async def execute(run_id: str, config_json: str, store, run_session_remote) -> N
             await board.session_done(report, has_video=bool(video))
 
         results = await run_on_modal(jobs, board, on_result, run_session_remote, run_id)
-        metrics, verdict, tokens = await judge(results, board)
+        metrics, verdict, tokens = await judge(results, board, config.objective)
         total = sum(r.input_tokens + r.output_tokens for r, _, _ in results) + sum(tokens.values())
         await board.set_status("finished", metrics=[m.model_dump() for m in metrics], verdict=verdict.model_dump() if verdict else None, tokens={**tokens, "total": total})
         surveys = [r.exit_survey for r, _, _ in results if r.exit_survey]
@@ -102,7 +102,8 @@ def create_api(store, run_experiment):
     api = FastAPI(title="Polypersona")
     api.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-    DAILY_RUNS_PER_USER = 12
+    # No limit unless POLYPERSONA_DAILY_RUNS is set. Useful once a link is shared widely, since every test spends credit.
+    DAILY_RUNS_PER_USER = int(os.environ.get("POLYPERSONA_DAILY_RUNS", "0") or 0)
 
     def _users() -> dict[str, str]:
         """POLYPERSONA_USERS="name:password,name2:password2"."""
@@ -174,15 +175,17 @@ def create_api(store, run_experiment):
     async def start_run(config: RunConfig, user: str = Depends(authorised)) -> dict:
         quota_key = f"quota/{user}/{time.strftime('%Y%m%d')}"
         used = await store.get.aio(quota_key, 0)
-        if user != "owner" and used >= DAILY_RUNS_PER_USER:
+        if DAILY_RUNS_PER_USER and user != "owner" and used >= DAILY_RUNS_PER_USER:
             raise HTTPException(429, f"daily limit of {DAILY_RUNS_PER_USER} runs reached for {user}")
         await store.put.aio(quota_key, used + 1)
         config.repeats = max(1, min(config.repeats, 3))
         config.personas = max(1, min(config.personas, 6))
         config.name = (config.name or "").strip()[:80] or None
+        config.objective = (config.objective or "").strip()[:300] or None
+        config.access_headers = {k.strip()[:60]: v.strip()[:200] for k, v in list((config.access_headers or {}).items())[:3] if k.strip() and v.strip()} or None
         run_id = time.strftime("%Y%m%d-%H%M%S-") + secrets.token_hex(2)
-        await store.put.aio(f"{run_id}/state", {"run_id": run_id, "status": "starting", "created_at": time.time(), "config": config.model_dump(), "sessions": {}})
-        await _index_update(store, run_id, status="starting", created_at=time.time(), config=config.model_dump(), started_by=user, name=config.name)
+        await store.put.aio(f"{run_id}/state", {"run_id": run_id, "status": "starting", "created_at": time.time(), "config": public_config(config), "sessions": {}})
+        await _index_update(store, run_id, status="starting", created_at=time.time(), config=public_config(config), started_by=user, name=config.name)
         await run_experiment.spawn.aio(run_id, config.model_dump_json())
         return {"run_id": run_id}
 
@@ -253,7 +256,7 @@ def create_api(store, run_experiment):
             report = SessionReport.model_validate_json(raw)
             reports.append(report)
             shots[sid] = [await store.get.aio(f"{run_id}/{sid}/{i}.jpg") or b"" for i in range(len(report.steps))]
-        deps = evaluator.EvalDeps(reports=reports, metrics=[VariantMetrics(**m) for m in state.get("metrics") or []], screenshots=shots)
+        deps = evaluator.EvalDeps(reports=reports, metrics=[VariantMetrics(**m) for m in state.get("metrics") or []], screenshots=shots, objective=(state.get("config") or {}).get("objective"))
         verdict = EvaluatorReport(**state["verdict"]) if state.get("verdict") else None
         return {"answer": await evaluator.ask(deps, body.question[:1000], verdict)}
 

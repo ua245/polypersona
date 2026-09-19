@@ -50,7 +50,7 @@ export default function KpiTiles({ run }: { run: RunState }) {
             <dl style={{ display: 'flex', margin: '10px 0 0' }}>
               {variants.map((v, i) => (
                 <div key={v} style={{ flex: '1 1 0', minWidth: 0, paddingLeft: i ? 14 : 0, marginLeft: i ? 14 : 0, borderLeft: i ? `1px solid ${C.border2}` : 'none' }}>
-                  <dt className="mono" style={{ fontSize: 10, color: C.muted, letterSpacing: '0.08em' }}>{v.toUpperCase()}</dt>
+                  <dt className="mono" style={{ fontSize: 10, color: C.muted, letterSpacing: '0.08em' }}>{variants.length > 1 ? v.toUpperCase() : 'All agents'}</dt>
                   <dd className="mono" style={{ margin: '2px 0 0', fontSize: big, fontWeight: 500, letterSpacing: '-0.03em', color: colors[i], whiteSpace: 'nowrap' }}>{k.fmt(k.values[i] ?? null)}</dd>
                 </div>
               ))}

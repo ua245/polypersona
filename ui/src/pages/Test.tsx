@@ -1,7 +1,7 @@
 // One test, one page. Live shows the agents working; Results shows what they found.
 import { Link, useParams, useSearchParams } from 'react-router';
 import { fmtTime, fmtTokens, useRun } from '../lib/api';
-import { runCounts, testName } from '../lib/derive';
+import { isSingleSite, runCounts, testName, verdictLabel } from '../lib/derive';
 import { C, Empty, RunStatusTag } from '../lib/ui';
 import LiveTab from './test/LiveTab';
 import ResultsTab from './test/ResultsTab';
@@ -27,7 +27,7 @@ export default function Test() {
   const starting = run.status === 'starting' || (counts.total > 0 && counts.starting === counts.total);
   const tabs = [
     { key: 'live' as const, label: 'Live', hint: run.status === 'finished' ? 'replay every agent' : starting ? 'agents are starting' : `${counts.finished} of ${counts.total} agents finished` },
-    { key: 'results' as const, label: 'Results', hint: ready ? (/^[a-z]$/i.test(run.verdict!.winner) ? `Variant ${run.verdict!.winner.toUpperCase()} wins` : 'No clear winner') : run.status === 'evaluating' ? 'the evaluator is judging…' : run.status === 'failed' ? 'not available' : 'ready when every agent finishes' },
+    { key: 'results' as const, label: 'Results', hint: ready ? verdictLabel(run.verdict!.winner, isSingleSite(run)) : run.status === 'evaluating' ? 'the evaluator is judging…' : run.status === 'failed' ? 'not available' : 'ready when every agent finishes' },
   ];
 
   return (

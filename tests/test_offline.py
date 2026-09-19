@@ -148,3 +148,27 @@ def test_site_alerts_are_kept_accepted_and_count_as_success():
             assert await b.check_success(task.model_copy(update={"success_text_contains": "Order confirmed"})) is False
 
     asyncio.run(scenario())
+
+
+def test_access_headers_reach_the_site_under_test_only_and_are_hidden_in_stored_config():
+    import json
+    from types import SimpleNamespace
+
+    from polypersona.orchestrator import RunConfig, public_config
+
+    class Route:
+        def __init__(self, url):
+            self.request, self.sent = SimpleNamespace(url=url, headers={"accept": "*/*"}), None
+
+        async def continue_(self, headers=None):
+            self.sent = headers
+
+    browser = BrowserSession("desktop", None, {"x-polypersona-key": "s3cret"}, "https://shop.example.com/checkout")
+    own, sub, third = Route("https://shop.example.com/cart"), Route("https://api.shop.example.com/v1"), Route("https://analytics.example.net/pixel")
+    for route in (own, sub, third):
+        asyncio.run(browser._add_access_headers(route))
+    assert own.sent["x-polypersona-key"] == "s3cret" and sub.sent["x-polypersona-key"] == "s3cret"
+    assert third.sent is None  # a third-party host never sees the secret
+
+    stored = public_config(RunConfig(url_a="https://x.test", goal="g", access_headers={"x-polypersona-key": "s3cret"}))
+    assert "s3cret" not in json.dumps(stored) and stored["access_headers"] == {"x-polypersona-key": "hidden"}

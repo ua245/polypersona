@@ -10,7 +10,7 @@ from pathlib import Path
 from . import evaluator, store
 from .live import FsBackend, LiveBoard
 from .models import SessionReport
-from .orchestrator import Result, RunConfig, judge, plan, run_local, run_on_modal, session_ids
+from .orchestrator import Result, RunConfig, judge, plan, public_config, run_local, run_on_modal, session_ids
 
 
 async def cmd_run(a: argparse.Namespace) -> None:
@@ -29,7 +29,7 @@ async def cmd_run(a: argparse.Namespace) -> None:
     run_dir = Path("runs") / time.strftime("%Y%m%d-%H%M%S")
     where = "on Modal" if a.modal else "locally"
     backend = FsBackend(run_dir)
-    board = LiveBoard(backend, run_dir.name, jobs, session_ids(jobs), where, config.model_dump())
+    board = LiveBoard(backend, run_dir.name, jobs, session_ids(jobs), where, public_config(config))
     await board.flush()
     if a.live:
         url = backend.serve()

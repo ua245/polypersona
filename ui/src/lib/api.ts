@@ -103,17 +103,31 @@ export interface Issue {
   recommendation: string;
 }
 
+export interface Suggestion {
+  title: string; // the change, as an instruction
+  change: string; // what exactly to build or alter
+  serves_goal: string; // how it moves the owner's objective
+  impact: 'low' | 'medium' | 'high';
+  effort: 'low' | 'medium' | 'high';
+  affected_personas: string[];
+  evidence: string[]; // "<session_id>#<step_idx>"
+}
+
 export interface Verdict {
-  winner: string; // a variant id or "no clear winner"
+  winner: string; // a variant id, "no clear winner", or "single site"
+  headline?: string; // one sentence to act on
   confidence: 'low' | 'medium' | 'high';
   rationale: string;
   issues: Issue[];
+  suggestions?: Suggestion[]; // improvements, most valuable first
   per_persona_notes: string[];
   caveats: string[];
 }
 
 export interface RunConfig {
   name?: string | null; // what the person called this test
+  access_headers?: Record<string, string> | null; // sent only to your site so its owner can allow the agents through bot protection
+  objective?: string | null; // what the owner is trying to improve, e.g. "more free trial signups"
   persona_ids?: string[] | null; // built-in personas: "margaret" | "dev" | "sofia"
   custom_personas?: Persona[] | null; // takes precedence over persona_ids
   variants?: string[]; // demo shop: "a" clean, "b" dark patterns, "c" plausible redesign
@@ -183,7 +197,8 @@ async function request<T>(path: string, init?: RequestInit & { auth?: boolean })
 }
 
 export const getPersonas = () => request<Persona[]>('/api/personas');
-export const listRuns = () => request<RunSummary[]>('/api/runs');
+// Tests of the built-in demo shop (no URL of their own) are left out: the product tests real sites only.
+export const listRuns = async () => (await request<RunSummary[]>('/api/runs')).filter((r) => !!r.config?.url_a);
 export const getRun = (runId: string) => request<RunState>(`/api/runs/${runId}`);
 export const checkToken = () => request<{ ok: boolean; user: string }>('/api/auth', { auth: true });
 export async function signIn(username: string, password: string): Promise<string> {

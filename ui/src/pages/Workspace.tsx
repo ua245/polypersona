@@ -11,6 +11,7 @@ const TONE_COLOR = { green: C.green, yellow: C.yellow, red: C.red, muted: C.mute
 const agentsOf = (r: RunSummary): number | null => r.sessions ?? null;
 function winnerLabel(r: RunSummary): string {
   if (!r.winner) return '–';
+  if (r.winner === 'single site') return 'Assessed';
   return r.winner.length <= 2 ? `${r.winner.toUpperCase()} wins` : 'No clear winner';
 }
 const hasClearWinner = (r: RunSummary) => !!r.winner && r.winner.length <= 2;

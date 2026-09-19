@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import tempfile
+from urllib.parse import urlparse
 from pathlib import Path
 
 from playwright.async_api import Browser, Page, Playwright, async_playwright
@@ -56,7 +57,9 @@ MAX_PAGE_TEXT = 2500
 class BrowserSession:
     """One isolated headless browser. All coordinates are on the 0-1000 grid."""
 
-    def __init__(self, device: str = "desktop", viewport: str | None = None):
+    def __init__(self, device: str = "desktop", viewport: str | None = None, access_headers: dict[str, str] | None = None, site_url: str | None = None):
+        self.access_headers = access_headers or {}
+        self.site_host = urlparse(site_url).hostname if site_url else None
         self.width, self.height = VIEWPORTS[device]
         if viewport:  # a customer's real screen, kept within sizes the model can point at accurately
             try:
@@ -85,9 +88,19 @@ class BrowserSession:
             record_video_size={"width": self.width, "height": self.height},
         )
         await context.add_init_script(CURSOR_JS)
+        if self.access_headers and self.site_host:
+            await context.route("**/*", self._add_access_headers)
         self.page = await context.new_page()
         self.page.on("dialog", self._on_dialog)
         return self
+
+    async def _add_access_headers(self, route) -> None:
+        """The owner's allow-list secret goes to the site under test and its subdomains only, never to third parties."""
+        host = urlparse(route.request.url).hostname or ""
+        if host == self.site_host or host.endswith("." + self.site_host):
+            await route.continue_(headers={**route.request.headers, **self.access_headers})
+        else:
+            await route.continue_()
 
     async def _on_dialog(self, dialog) -> None:
         """Sites often confirm a signup or an error with a native alert. Keep its text and press OK, as a person would."""

@@ -7,10 +7,22 @@ export const testPath = (runId: string, tab?: 'live' | 'results') => `/tests/${e
 export const agentPath = (runId: string, sessionId: string, step?: number) =>
   `/tests/${encodeURIComponent(runId)}/agents/${encodeURIComponent(sessionId)}${step != null ? `#step-${step}` : ''}`;
 
+// ---------- one website, or two variants ----------
+export const isSingleSite = (r: { config?: RunConfig | null; sessions?: Record<string, SessionState> } | null | undefined): boolean => {
+  if (!r) return false;
+  if (r.config?.url_a) return !r.config.url_b;
+  const variants = new Set(Object.values(r.sessions ?? {}).map((s) => s.variant));
+  return variants.size === 1;
+};
+/** "Variant A wins", "No clear winner", or for a single site "Assessment ready". */
+export const verdictLabel = (winner: string | null | undefined, single: boolean): string =>
+  single ? 'Assessment ready' : winner && /^[a-z]$/i.test(winner) ? `Variant ${winner.toUpperCase()} wins` : 'No clear winner';
+
 // ---------- naming ----------
 const VARIANT_BLURB: Record<string, string> = { a: 'clean checkout', b: 'dark patterns', c: 'redesign' };
 export function targetLabel(config?: RunConfig | null): string {
   if (!config) return 'Test';
+  if (config.url_a && !config.url_b) { try { return `${new URL(config.url_a).host}: first impressions`; } catch { return config.url_a; } }
   if (config.url_a && config.url_b) {
     const host = (u: string) => { try { return new URL(u).host; } catch { return u; } };
     return `${host(config.url_a)} vs ${host(config.url_b)}`;
@@ -20,6 +32,7 @@ export function targetLabel(config?: RunConfig | null): string {
 }
 export const testName = (r: { config?: RunConfig | null; name?: string | null }): string => r.name || r.config?.name || targetLabel(r.config);
 export const variantName = (id: string, config?: RunConfig | null): string =>
+  config?.url_a && !config.url_b ? (() => { try { return new URL(config.url_a!).host; } catch { return 'Your site'; } })() :
   `Variant ${id.toUpperCase()}${config?.url_a ? '' : VARIANT_BLURB[id] ? ` · ${VARIANT_BLURB[id]}` : ''}`;
 
 // ---------- people ----------

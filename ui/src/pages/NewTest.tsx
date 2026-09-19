@@ -27,10 +27,14 @@ export default function NewTest() {
   const [custom] = useState<Persona[]>(() => { const c = loadCustomPersonas(); return Array.isArray(c) ? c : []; });
   const [selected, setSelected] = useState<Set<string>>(new Set()); // "b:<id>" built-in, "c:<id>" custom
 
-  const [compare, setCompare] = useState<Compare>('site');
+  const [compare] = useState<Compare>('site');
+  const [mode, setMode] = useState<'single' | 'variants'>('single'); // one website, or two versions of it
   const [urlA, setUrlA] = useState('');
   const [urlB, setUrlB] = useState('');
   const [goal, setGoal] = useState('');
+  const [accessName, setAccessName] = useState('x-polypersona-key');
+  const [accessValue, setAccessValue] = useState(''); // a secret the site owner allow-lists; never shown again after the test starts
+  const [objective, setObjective] = useState(''); // what the owner wants to improve; steers the evaluator's suggestions
   const [successText, setSuccessText] = useState('');
   const [successUrl, setSuccessUrl] = useState('');
   const [successSelector, setSuccessSelector] = useState('');
@@ -65,11 +69,13 @@ export default function NewTest() {
   const toggle = (key: string) => setSelected((prev) => { const next = new Set(prev); if (!next.delete(key)) next.add(key); return next; });
 
   const choice = COMPARE.find((c) => c.id === compare)!;
-  const autoName = compare === 'site' && host(urlA) && host(urlB) ? `${host(urlA)} vs ${host(urlB)}` : choice.autoName;
+  const single = mode === 'single';
+  const autoName = single ? (host(urlA) ? `${host(urlA)}: first impressions` : 'My site: first impressions') : host(urlA) && host(urlB) ? `${host(urlA)} vs ${host(urlB)}` : choice.autoName;
   const name = typedName ?? autoName;
 
   const compareProblem = compare !== 'site' ? null
-    : !isUrl(urlA) || !isUrl(urlB) ? 'Enter both URLs, starting with https://'
+    : single && !isUrl(urlA) ? 'Enter the website URL, starting with https://'
+    : !single && (!isUrl(urlA) || !isUrl(urlB)) ? 'Enter both URLs, starting with https://'
     : !goal.trim() ? 'Say what each person should try to do'
     : null;
   const whoProblem = builtIn == null ? 'Loading personas…'
@@ -79,7 +85,7 @@ export default function NewTest() {
   const nameProblem = name.trim() ? null : 'Give the test a name';
   const problem = compareProblem ?? whoProblem ?? nameProblem;
 
-  const agents = chosen.length * 2 * repeats;
+  const agents = chosen.length * (single ? 1 : 2) * repeats;
   const minutes = agents <= 6 ? 'about 3 minutes' : 'about 4 minutes';
 
   const buildConfig = (): RunConfig => {
@@ -88,7 +94,9 @@ export default function NewTest() {
     else config.persona_ids = chosen.map((x) => x.persona.id);
     if (choice.variants) config.variants = choice.variants;
     else {
-      config.url_a = urlA.trim(); config.url_b = urlB.trim(); config.goal = goal.trim();
+      config.url_a = urlA.trim(); config.url_b = single ? null : urlB.trim(); config.goal = goal.trim();
+      config.objective = objective.trim() || null;
+      config.access_headers = accessName.trim() && accessValue.trim() ? { [accessName.trim()]: accessValue.trim() } : null;
       config.success_text = successText.trim() || null;
       config.success_url = successUrl.trim() || null;
       config.success_selector = successSelector.trim() || null;
@@ -107,7 +115,7 @@ export default function NewTest() {
   };
 
   const checklist: { label: string; ok: boolean; detail: string }[] = [
-    { label: 'What to compare', ok: compareProblem == null, detail: compareProblem ?? (compare === 'site' ? `${host(urlA)} vs ${host(urlB)}` : choice.title) },
+    { label: 'What to test', ok: compareProblem == null, detail: compareProblem ?? (single ? host(urlA) : `${host(urlA)} vs ${host(urlB)}`) },
     { label: 'Who tests it', ok: whoProblem == null, detail: whoProblem ?? chosen.map((x) => x.persona.name.split(' ')[0]).join(', ') },
     { label: 'Name', ok: nameProblem == null, detail: nameProblem ?? name.trim() },
   ];
@@ -122,7 +130,7 @@ export default function NewTest() {
             <Eyebrow>New test</Eyebrow>
             <h1 style={{ margin: '14px 0 12px', fontSize: 'clamp(28px, 4vw, 34px)', fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.1 }}>Set up your test</h1>
             <p style={{ margin: 0, color: C.muted2, fontSize: 15, lineHeight: 1.6 }}>
-              Each persona uses both variants in a real browser, thinking out loud. You watch them live, then get a verdict with screenshots.
+              Each persona uses your site in a real browser, thinking out loud. You watch them live, then get their opinions and the evidence.
             </p>
             <ol aria-label="Decisions" className="nt-checklist">
               {checklist.map((c) => (
@@ -139,17 +147,36 @@ export default function NewTest() {
           </aside>
 
           <form onSubmit={(e) => e.preventDefault()} style={{ display: 'grid', gap: 36, minWidth: 0 }}>
-            <Section n="1" title="What to compare">
+            <Section n="1" title="What to test">
+              <div role="radiogroup" aria-label="What to test" className="nt-cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))' }}>
+                {([
+                  { id: 'single', tag: 'One URL', title: 'One website', blurb: 'A panel of different people uses your site and tells you what they think, where they struggled and what they liked.' },
+                  { id: 'variants', tag: 'Two URLs · A/B', title: 'Compare two variants', blurb: 'Every persona uses both versions. You get a winner, or an honest "no clear winner", with the evidence.' },
+                ] as const).map((m) => (
+                  <label key={m.id} className="nt-radio" data-on={mode === m.id}>
+                    <input type="radio" name="nt-mode" value={m.id} checked={mode === m.id} onChange={() => setMode(m.id)} />
+                    <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                      <span className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: mode === m.id ? C.green : C.muted }}>{m.tag}</span>
+                      <RadioDot on={mode === m.id} />
+                    </span>
+                    <span style={{ display: 'block', fontSize: 15, fontWeight: 600, marginTop: 14, letterSpacing: '-0.01em' }}>{m.title}</span>
+                    <span style={{ display: 'block', fontSize: 13, color: C.muted2, marginTop: 6, lineHeight: 1.5 }}>{m.blurb}</span>
+                  </label>
+                ))}
+              </div>
               {compare !== 'site' ? (
                 <p style={{ margin: '14px 0 0', fontSize: 13, color: C.muted, lineHeight: 1.5 }}><span style={{ color: C.muted2 }}>Goal:</span> {DEMO_GOAL}</p>
               ) : (
                 <div style={{ marginTop: 16, display: 'grid', gap: 16 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12 }}>
-                    <Field id="nt-url-a" label="URL A"><input id="nt-url-a" className="input mono nt-input" type="url" inputMode="url" placeholder="https://example.com/checkout" value={urlA} onChange={(e) => setUrlA(e.target.value)} /></Field>
-                    <Field id="nt-url-b" label="URL B"><input id="nt-url-b" className="input mono nt-input" type="url" inputMode="url" placeholder="https://staging.example.com/checkout" value={urlB} onChange={(e) => setUrlB(e.target.value)} /></Field>
+                    <Field id="nt-url-a" label={single ? 'Website URL' : 'URL A'}><input id="nt-url-a" className="input mono nt-input" type="url" inputMode="url" placeholder="https://example.com/checkout" value={urlA} onChange={(e) => setUrlA(e.target.value)} /></Field>
+                    {!single && <Field id="nt-url-b" label="URL B"><input id="nt-url-b" className="input mono nt-input" type="url" inputMode="url" placeholder="https://staging.example.com/checkout" value={urlB} onChange={(e) => setUrlB(e.target.value)} /></Field>}
                   </div>
                   <Field id="nt-goal" label="What should each person try to do?" hint="Written to the persona in plain words. It is all they know about the site.">
                     <textarea id="nt-goal" className="input nt-input" rows={3} placeholder="Sign up for the free plan and create your first project." value={goal} onChange={(e) => setGoal(e.target.value)} style={{ resize: 'vertical' }} />
+                  </Field>
+                  <Field id="nt-objective" label="What are you trying to improve?" hint="Optional. The evaluator judges every suggestion against this, for example: more visitors starting a free trial.">
+                    <input id="nt-objective" className="input nt-input" placeholder="More visitors starting a free trial" maxLength={300} value={objective} onChange={(e) => setObjective(e.target.value)} />
                   </Field>
                   <Field id="nt-s-text" label="Text that appears when they succeed" hint="Optional. Success is checked in code against the live page, not taken from the agent's word.">
                     <input id="nt-s-text" className="input nt-input" placeholder="Your project is ready" value={successText} onChange={(e) => setSuccessText(e.target.value)} />
@@ -192,6 +219,17 @@ export default function NewTest() {
                   ))}
                 </div>
                 <p style={{ color: C.muted, fontSize: 12, margin: '10px 0 0' }}>Below 3 repeats, treat results as directional.</p>
+                <div style={{ marginTop: 20 }}>
+                  <div style={{ fontSize: 12, color: C.muted2, marginBottom: 6 }}>Site behind Cloudflare or other bot protection?</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 8 }}>
+                    <div><label htmlFor="nt-access-name" style={{ position: 'absolute', left: -9999 }}>Access header name</label><input id="nt-access-name" className="input mono nt-input" value={accessName} onChange={(e) => setAccessName(e.target.value)} placeholder="x-polypersona-key" /></div>
+                    <div><label htmlFor="nt-access-value" style={{ position: 'absolute', left: -9999 }}>Access header value</label><input id="nt-access-value" className="input mono nt-input" type="password" autoComplete="off" value={accessValue} onChange={(e) => setAccessValue(e.target.value)} placeholder="a secret value you choose" /></div>
+                  </div>
+                  <p style={{ color: C.muted, fontSize: 12, margin: '8px 0 0', lineHeight: 1.55 }}>
+                    The agents are automated browsers, so bot protection will challenge them. Let them in on purpose: choose a secret here, then on your site add a rule that skips the challenge when this header matches
+                    (in Cloudflare: Security, WAF, Custom rules, action Skip). The header is sent only to your site, and its value is never stored with the test.
+                  </p>
+                </div>
               </div>
             </details>
           </form>
@@ -202,7 +240,7 @@ export default function NewTest() {
         <div className="nt-bar-in">
           <div style={{ minWidth: 0, flex: '1 1 300px' }}>
             <div className="mono" style={{ fontSize: 13, lineHeight: 1.5 }}>
-              {chosen.length} {chosen.length === 1 ? 'persona' : 'personas'} × 2 variants{repeats > 1 ? ` × ${repeats} repeats` : ''} = <span style={{ color: C.green }}>{agents} {agents === 1 ? 'agent' : 'agents'}</span>
+              {chosen.length} {chosen.length === 1 ? 'persona' : 'personas'} × {single ? '1 website' : '2 variants'}{repeats > 1 ? ` × ${repeats} repeats` : ''} = <span style={{ color: C.green }}>{agents} {agents === 1 ? 'agent' : 'agents'}</span>
               {agents > 0 && <span style={{ color: C.muted2 }}> · {minutes} · ~{fmtTokens(agents * 150000)} Gemini tokens</span>}
             </div>
             <div aria-live="polite" className="nt-bar-msg">

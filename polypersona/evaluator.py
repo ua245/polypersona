@@ -18,6 +18,7 @@ class EvalDeps:
     reports: list[SessionReport]
     metrics: list[VariantMetrics]
     screenshots: dict[str, list[bytes]]  # session_id -> one image per step
+    objective: str | None = None  # what the site owner is trying to improve
 
 
 INSTRUCTIONS = """You are a senior UX researcher judging an A/B test of a website flow.
@@ -32,7 +33,22 @@ Rules:
 - Merge duplicate observations from different personas into one issue and list everyone affected.
 - Separate real defects from persona taste. Say which persona segments each variant serves badly.
 - These are simulated users and small samples. Set confidence accordingly and list caveats.
-- Write plainly. Recommendations must be specific enough for a designer or engineer to act on."""
+- Write plainly. Recommendations must be specific enough for a designer or engineer to act on.
+- suggestions: the improvements you would make, most valuable first, three to six of them. Judge each one against the
+  owner's objective and the task people were given: say how it serves that goal, not just that it is good practice.
+  Rate impact on the objective and effort honestly; prefer high impact and low effort at the top. Every suggestion
+  needs evidence from the sessions. Do not suggest things nobody struggled with."""
+
+
+SINGLE_SITE = """
+
+This study tested ONE website, not two variants. There is no winner to pick:
+- Set winner to "single site".
+- headline: the single most important thing the site owner should know, in one plain sentence.
+- rationale: an overall assessment. Would these people use it, where did they struggle, what did they like.
+- confidence: how far the findings can be trusted given the panel size and how much the personas agreed.
+- Set variant_id to "a" on every issue. Include what works well as 'delight' issues, not only problems.
+- per_persona_notes: one line per persona on how it went for them and why."""
 
 
 def _context(deps: EvalDeps) -> str:
@@ -53,11 +69,19 @@ def _context(deps: EvalDeps) -> str:
                 "error": r.error,
             }
         )
-    return json.dumps({"metrics": [m.model_dump() for m in deps.metrics], "sessions": sessions}, indent=1)
+    goal = next((r.goal for r in deps.reports if r.goal), "")
+    brief = {"task_given_to_each_person": goal, "owner_objective": deps.objective or "not stated: infer it from the task"}
+    return json.dumps({"brief": brief, "metrics": [m.model_dump() for m in deps.metrics], "sessions": sessions}, indent=1)
 
 
 def _build(output_type) -> Agent[EvalDeps]:
-    agent = Agent(make_model(EVALUATOR_MODEL), deps_type=EvalDeps, output_type=output_type, instructions=INSTRUCTIONS, retries=3)
+    agent = Agent(make_model(EVALUATOR_MODEL), deps_type=EvalDeps, output_type=output_type, retries=3)
+
+    @agent.instructions
+    def instructions(ctx: RunContext[EvalDeps]) -> str:
+        single = len({r.variant_id for r in ctx.deps.reports}) == 1
+        return INSTRUCTIONS.replace("judging an A/B test of a website flow", "reviewing a usability study of a website") + SINGLE_SITE if single else INSTRUCTIONS
+
 
     @agent.tool
     def get_screenshot(ctx: RunContext[EvalDeps], session_id: str, step_idx: int) -> ToolReturn | str:

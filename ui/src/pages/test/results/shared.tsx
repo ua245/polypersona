@@ -9,7 +9,8 @@ export function variantsOf(run: RunState): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   const add = (v: string | undefined | null) => { if (v && !seen.has(v)) { seen.add(v); out.push(v); } };
-  (run.config?.variants ?? []).forEach(add);
+  // config.variants only describes demo shop tests; a test of your own site has the variants it actually ran.
+  if (!run.config?.url_a) (run.config?.variants ?? []).forEach(add);
   (run.metrics ?? []).forEach((m) => add(m.variant_id));
   sessionList(run).map((s) => s.variant).sort().forEach(add);
   return out;

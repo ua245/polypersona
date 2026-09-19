@@ -1,7 +1,7 @@
 // The Live tab: counts, sentiment, then every agent working, then how far each one got.
 import { useMemo, useState, type ReactNode } from 'react';
 import { sessionList, type RunState, type SessionState } from '../../lib/api';
-import { SENTIMENT_HELP, agentState, avatarColor, initials, pct, runCounts, sentimentOf, sentimentTone, variantName, type AgentState } from '../../lib/derive';
+import { SENTIMENT_HELP, agentState, avatarColor, initials, pct, runCounts, sentimentOf, sentimentTone, variantName, type AgentState, isSingleSite } from '../../lib/derive';
 import { C, Empty, Tag } from '../../lib/ui';
 import AgentCard from './live/AgentCard';
 import JourneyMatrix from './live/JourneyMatrix';
@@ -42,7 +42,8 @@ const firstSentences = (text: string, n: number) => text.split(/(?<=[.!?])\s+/).
 export default function LiveTab({ run, onOpenResults }: { run: RunState; onOpenResults: () => void }) {
   const sessions = useMemo(() => sessionList(run), [run]);
   const counts = runCounts(run);
-  const variants = useMemo(() => [...new Set([...(run.config.variants ?? []), ...sessions.map((s) => s.variant)])].sort(), [run.config.variants, sessions]);
+  // config.variants only describes demo shop tests; a test of your own site has the variants it actually ran.
+  const variants = useMemo(() => [...new Set([...(run.config.url_a ? [] : run.config.variants ?? []), ...sessions.map((s) => s.variant)])].sort(), [run.config.url_a, run.config.variants, sessions]);
   const [stateFilter, setStateFilter] = useState<StateFilter>('all');
   const [variantFilter, setVariantFilter] = useState<string>('all');
 
@@ -106,7 +107,7 @@ export default function LiveTab({ run, onOpenResults }: { run: RunState; onOpenR
           <div style={{ flex: '1 1 380px', minWidth: 0 }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em', color: winnerIsVariant ? C.green : C.text }}>
-                {winnerIsVariant ? `Variant ${verdict.winner.toUpperCase()} wins` : 'No clear winner'}
+                {isSingleSite(run) ? (verdict.headline || 'The assessment is ready') : winnerIsVariant ? `Variant ${verdict.winner.toUpperCase()} wins` : 'No clear winner'}
               </span>
               <Tag tone={verdict.confidence === 'high' ? 'green' : verdict.confidence === 'medium' ? 'yellow' : 'muted'}>{verdict.confidence} confidence</Tag>
             </div>

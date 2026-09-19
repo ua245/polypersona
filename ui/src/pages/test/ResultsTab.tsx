@@ -11,6 +11,7 @@ import Metrics from './results/Metrics';
 import { Section, winnerOf } from './results/shared';
 import { KeyFinding, LeadingThemes, NotableAlerts } from './results/Themes';
 import Voices from './results/Voices';
+import Suggestions from './results/Suggestions';
 import VerdictHero from './results/VerdictHero';
 
 const STYLES = `
@@ -71,6 +72,11 @@ export default function ResultsTab({ run, onOpenLive }: { run: RunState; onOpenL
       <style>{STYLES}</style>
       <VerdictHero run={run} />
       <div style={{ marginTop: 12 }}><KpiTiles run={run} /></div>
+      {verdict.suggestions && verdict.suggestions.length > 0 && (
+        <Section eyebrow="What to change" title="Suggested improvements, in priority order" help="Judged against your objective and the task people were given. Each one links to the moments that prompted it.">
+          <Suggestions run={run} suggestions={verdict.suggestions} />
+        </Section>
+      )}
 
       <div style={{ display: 'grid', gap: 12, marginTop: 12, alignItems: 'start', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))' }}>
         <LeadingThemes issues={verdict.issues} onSelect={select} />
