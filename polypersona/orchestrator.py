@@ -21,6 +21,7 @@ OnResult = Callable[[Result], Awaitable[None]]
 
 
 class RunConfig(BaseModel):
+    name: str | None = None  # what the person called this test
     persona_ids: list[str] | None = None  # built-in personas by id; None means the first `personas`
     personas: int = 1
     audience: str | None = None  # generate `personas` personas for this audience instead
@@ -37,7 +38,7 @@ class RunConfig(BaseModel):
 
 async def plan(config: RunConfig) -> list[Job]:
     if config.custom_personas:
-        personas = config.custom_personas[:8]
+        personas = config.custom_personas[:10]
     elif config.audience:
         personas = await generate_personas(config.audience, config.personas)
     elif config.persona_ids:
@@ -68,7 +69,7 @@ async def run_local(jobs: list[Job], board: LiveBoard, on_result: OnResult, conc
     return await asyncio.gather(*(one(j) for j in jobs))
 
 
-async def run_on_modal(jobs: list[Job], board: LiveBoard, on_result: OnResult, run_session_remote) -> list[Result]:
+async def run_on_modal(jobs: list[Job], board: LiveBoard, on_result: OnResult, run_session_remote, run_id: str | None = None) -> list[Result]:
     """One Modal container per session. Steps stream back over a queue while the sessions run."""
     import modal
 
@@ -88,7 +89,7 @@ async def run_on_modal(jobs: list[Job], board: LiveBoard, on_result: OnResult, r
 
     async with modal.Queue.ephemeral() as queue:
         pumping = asyncio.create_task(pump(queue))
-        args = [(p.model_dump_json(), t.model_dump_json(), rep, queue) for p, t, rep in jobs]
+        args = [(p.model_dump_json(), t.model_dump_json(), rep, queue, f"{run_id}/{session_id_for(p, t, rep)}/control" if run_id else None) for p, t, rep in jobs]
         async for item in run_session_remote.starmap.aio(args, order_outputs=False, return_exceptions=True):
             if isinstance(item, Exception):  # container died; the steps it streamed are already stored
                 print(f"  a session container failed: {item}", flush=True)

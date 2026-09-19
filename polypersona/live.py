@@ -105,6 +105,9 @@ class LiveBoard:
                     "outcome": None,
                     "steps": [],
                     "observations": [],
+                    "controls": [],
+                    "viewport": p.viewport,
+                    "source": p.source,
                     "actions_left": p.patience_steps,
                     "exit_survey": None,
                     "has_video": False,
@@ -132,6 +135,8 @@ class LiveBoard:
             s["steps"].append({k: step[k] for k in ("idx", "action", "args", "reasoning", "changed", "note", "url", "ts")})
         elif kind == "observation":
             s["observations"].append(event["observation"])
+        elif kind == "control":
+            s.setdefault("controls", []).append({"kind": event["kind"], "text": event["text"], "step_idx": event["step_idx"]})
         elif kind == "finished":
             s.update(status="finished", outcome=event["outcome"], error=event["error"], exit_survey=event["exit_survey"])
         await self.flush()

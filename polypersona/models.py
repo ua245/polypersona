@@ -18,6 +18,9 @@ class Persona(BaseModel):
     patience_steps: int = Field(ge=8, le=40, description="Browser actions this person tolerates before giving up.")
     device: Literal["desktop", "mobile"] = "desktop"
     reading_style: Literal["skims", "reads_everything"] = "skims"
+    viewport: str | None = Field(default=None, description="Optional 'WIDTHxHEIGHT' of this person's screen, e.g. from customer data.")
+    details: dict[str, str] = Field(default_factory=dict, description="Extra facts about the person, e.g. past purchases or home city.")
+    source: str | None = Field(default=None, description="Where the persona came from, e.g. 'customers.csv row 14'.")
 
 
 class TestTask(BaseModel):

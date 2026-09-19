@@ -109,3 +109,27 @@ def test_variant_c_clears_cart_and_requires_email():
             server.shutdown()
 
     asyncio.run(scenario())
+
+
+def test_crm_rows_become_personas_without_a_model():
+    from polypersona.population import persona_from_row, recognised
+
+    row = {
+        "name": "Olivia Bennett", "bio": "Is a consultant who values productivity and fast checkout.",
+        "goals": "make confident purchases without needing support", "frustrations": "long checkout forms, unclear delivery dates, and pop-ups",
+        "tech_savviness": "Very high", "patience_steps": "3", "viewport": "2560x1440",
+        "reading_style": "Technical deep reader", "products_bought": "laptop stand, webcam", "address": "1 Willow Close, Manchester, UK",
+    }
+    assert recognised([row]) and not recognised([{"customer": "x", "ltv": "12"}])
+    p = persona_from_row(row, 14, "crm.csv")
+    assert (p.id, p.tech_savviness, p.device, p.reading_style, p.patience_steps) == ("olivia-bennett-14", "high", "desktop", "reads_everything", 19)
+    assert p.frustrations == ["long checkout forms", "unclear delivery dates", "pop-ups"]
+    assert p.viewport == "2560x1440" and p.source == "crm.csv row 14"
+    assert p.details["You live in"] == "Manchester, UK" and "Willow" not in str(p.details)
+    assert persona_from_row({**row, "viewport": "390x844"}, 2).device == "mobile"
+
+
+def test_customer_viewport_is_clamped_for_the_browser():
+    assert (BrowserSession("desktop", "2560x1440").width, BrowserSession("desktop", "2560x1440").height) == (1440, 900)
+    assert BrowserSession("mobile", "390x844").width == 390
+    assert BrowserSession("desktop", "nonsense").width == 1280

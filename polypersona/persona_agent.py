@@ -42,6 +42,8 @@ class SessionDeps:
     recorder: Recorder
     session_id: str = ""
     sink: EventSink | None = None
+    control: Callable[[], Awaitable[dict | None]] | None = None  # observer's nudges: {"guide": "..."} or {"stop": True}
+    stopped: bool = False
 
     async def emit(self, event: dict) -> None:
         if self.sink:
@@ -122,7 +124,7 @@ def _instructions(ctx: RunContext[SessionDeps]) -> str:
     return f"""You are {p.name}. Stay in character for the whole session; you are a real person using a website, not a tester or an AI.
 
 About you: {p.bio}
-What you want: {"; ".join(p.goals)}
+{"".join(f"{k}: {v}{chr(10)}" for k, v in p.details.items())}What you want: {"; ".join(p.goals)}
 What annoys you: {"; ".join(p.frustrations)}
 {savvy}
 {reading}
@@ -144,6 +146,8 @@ How this works:
 async def _act(ctx: RunContext[SessionDeps], action: str, args: dict, reasoning: str, do: Callable[[], Awaitable[str | None]]) -> ToolReturn | str:
     """Run one browser action, record it as a step, and show the persona the result."""
     deps = ctx.deps
+    if deps.stopped:
+        return "You have been asked to stop. Do not act further; return the exit survey now, describing the experience so far."
     if deps.actions_left <= 0:
         return "Your patience has run out. Do not act further; return the exit survey now."
     before = await deps.browser.fingerprint()
@@ -163,6 +167,14 @@ async def _act(ctx: RunContext[SessionDeps], action: str, args: dict, reasoning:
     if error:
         lines.append(f"That did not work: {error}")
     lines.append(f"{left} actions of patience left." if left > 0 else "Your patience has run out. Stop and return the exit survey now.")
+    message = await deps.control() if deps.control else None
+    if message and message.get("stop"):
+        deps.stopped = True
+        lines.append("The person running this study has ended your session. Return the exit survey now, describing the experience so far.")
+        await deps.emit({"type": "control", "kind": "stop", "text": "Session stopped by the observer", "step_idx": step.idx})
+    elif message and message.get("guide"):
+        lines.append(f"A friend looking over your shoulder says: \"{message['guide']}\". Take it as a suggestion and stay in character.")
+        await deps.emit({"type": "control", "kind": "guide", "text": message["guide"], "step_idx": step.idx})
     content: list = ["The screen now:", BinaryContent(data=image, media_type="image/jpeg")]
     if deps.persona.reading_style == "reads_everything":
         content.append(f"Because you read everything, here is the text on the page:\n{await deps.browser.page_text()}")

@@ -1,0 +1,8 @@
+{
+  // Static SPA on Cloudflare Pages: https://polypersona.pages.dev
+  // Deploy: npm run build && npx wrangler pages deploy dist --project-name polypersona --branch main --force
+  // (--force keeps it on Pages. Without it wrangler deploys a Worker on the account's workers.dev subdomain.)
+  "name": "polypersona",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-09-01"
+}
