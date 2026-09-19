@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="logo.svg" alt="PolyPersona Logo" width="220" />
+  <img src="logo.svg" alt="PolyPersona Logo (SVG)" width="220" />
+</p>
+<p align="center">
+  <img src="assets/polypersona-banner.png" alt="PolyPersona Brand Banner" width="220" />
 </p>
 
 <h1 align="center">PolyPersona</h1>
@@ -39,6 +42,78 @@ Operating inside isolated cloud containers with real Chromium browsers, persona 
 ## System Architecture
 
 PolyPersona cleanly decouples responsibilities across three runtimes:
+
+```mermaid
+flowchart TB
+  subgraph CF[Cloudflare Pages]
+    UI[React 19 + Vite UI\nStatic SPA / Tailwind v4]
+  end
+
+  subgraph MODAL[Modal Cloud]
+    API[web\nFastAPI ASGI App]
+    ORCH[run_experiment\nCloud Orchestrator]
+    DICT[(modal.Dict\npolypersona-runs)]
+    Q[[modal.Queue\nEphemeral Step Events]]
+    
+    subgraph CONTAINERS[Agent Containers - 1 per Session]
+      S1[run_session_remote\nPersonaAgent + Chromium]
+      S2[run_session_remote\nPersonaAgent + Chromium]
+    end
+  end
+
+  subgraph MODELS[Model & Gateway Layer]
+    GW[Pydantic AI Gateway\nEndpoint: persona]
+    RULE[Rule: UX Evidence Protocol]
+    GUARD[Guardrail: Payment Card Redaction]
+    LOGFIRE[Logfire Tracing]
+    GEM[Gemini API\n3.8 Flash / Pro Latest]
+  end
+
+  SITE[Site Under Test\nLocal Demo Coffee Shop or Live URLs]
+
+  UI -- HTTPS / Poll 1s --> API
+  API -- spawn --> ORCH
+  API <--> DICT
+  ORCH -- starmap fan-out --> S1 & S2
+  S1 & S2 -- steps + screenshots --> Q --> ORCH
+  ORCH -- live state, screenshots, recordings, verdict --> DICT
+  API -- guide / stop --> DICT -- read after each action --> S1 & S2
+  S1 & S2 --> SITE
+  S1 & S2 <--> GW
+  GW --> RULE & GUARD --> GEM
+  GW -. telemetry .-> LOGFIRE
+  ORCH <--> GEM
+```
+
+### Agent Session Execution Loop
+
+Each persona session runs in an isolated container with its own Chromium browser instance:
+
+```mermaid
+sequenceDiagram
+  participant A as PersonaAgent (Pydantic AI)
+  participant GW as Gateway / Guardrails
+  participant G as Gemini API
+  participant B as BrowserSession (Playwright)
+  participant D as modal.Dict / Queue (Live State)
+
+  A->>B: Launch browser & load start URL
+  B-->>A: Initial page screenshot & DOM fingerprint
+  loop Until ExitSurvey, patience budget exhausted (8–40 steps), or operator stop
+    A->>GW: Conversation history + last 3 screenshots
+    GW->>GW: Enforce card redaction & inject UX evidence protocol
+    GW->>G: Forward sanitized payload
+    G-->>GW: Tool call: click(x, y, reasoning), type_text, scroll, or observation
+    GW-->>A: Executable tool call
+    A->>B: Execute action on 0-1000 coordinate grid
+    B->>B: Compute DOM / URL / scroll fingerprint delta
+    B-->>A: Note element ('clicked button: Continue'), changed: true/false
+    A->>D: Stream step record, observation, and JPEG screenshot
+    A->>D: Check for operator intervention (guide message or stop signal)
+  end
+  A->>G: Complete ExitSurvey (ease, trust, summary, biggest problem)
+  A->>B: Verify completion in code (URL check, text check, or CSS selector)
+```
 
 ```
                             ┌────────────────────────┐
