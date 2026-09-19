@@ -11,7 +11,7 @@ import modal
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
-    .pip_install("pydantic-ai-slim[google]==2.46.0", "playwright==1.63.0", "python-dotenv", "fastapi[standard]")
+    .pip_install("pydantic-ai-slim[google,openai]==2.46.0", "logfire==5.1.0", "playwright==1.63.0", "python-dotenv", "fastapi[standard]")
     .run_commands("playwright install --with-deps chromium")
     .add_local_dir("site", "/root/site")
     .add_local_python_source("polypersona")
