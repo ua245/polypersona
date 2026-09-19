@@ -140,7 +140,7 @@ sequenceDiagram
 │  Direct: Gemini API (gemini-3.8-flash / gemini-pro-latest)             │
 │  Gateway: Pydantic AI Gateway                                          │
 │   ├── Endpoint: persona                                                │
-│   ├── Rule: UX Evidence Protocol (System Message Injection)           │
+│   ├── Rule: UX Evidence Protocol (System Message Injection)            │
 │   ├── Guardrail: Payment Card Number (Network-level Redaction)         │
 │   └── Telemetry: Logfire Tracing per session                           │
 └────────────────────────────────────────────────────────────────────────┘
