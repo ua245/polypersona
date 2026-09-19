@@ -2,7 +2,9 @@
 
     PERSONA_MODEL=gemini-3.8-flash                       Gemini API, direct
     PERSONA_MODEL=gateway/modal:google/gemma-4-31B-it    Gateway route "modal" -> Modal endpoint (vLLM)
-    PERSONA_MODEL=gateway/gemini:gemini-3.8-flash        Gateway route "gemini" -> Gemini's OpenAI-compatible API
+    PERSONA_MODEL=gateway/persona:gemini-3.8-flash       Gateway route "persona" -> Gemini's OpenAI-compatible API
+
+Don't name a Gateway endpoint "gemini": the Gateway reserves it as an alias for its Vertex route.
 
 Gateway routes need PYDANTIC_AI_GATEWAY_API_KEY and PYDANTIC_AI_GATEWAY_BASE_URL. The Modal
 credentials live in the Gateway (BYOK), never in this app.
