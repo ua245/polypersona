@@ -1,102 +1,146 @@
-// One agent in the Live grid: where it is, what it is thinking, what it sees, how much patience is left.
+// One agent in the Live grid: what it sees (a mini browser), what it's thinking, how much patience
+// is left, its latest complaint, and at the end its verdict on the site.
 import type { CSSProperties } from 'react';
 import { Link } from 'react-router';
 import type { SessionState } from '../../../lib/api';
-import { STATE_LABEL, STATE_TONE, agentPath, agentState, currentStage, type AgentState } from '../../../lib/derive';
-import { C, KindTag, PatienceBar, Screenshot, Tag } from '../../../lib/ui';
+import { STATE_LABEL, STATE_TONE, agentPath, agentState, currentStage } from '../../../lib/derive';
+import { C, KIND_TONE, Screenshot } from '../../../lib/ui';
 import { StageIcon } from './stages';
 
 const TONE_COLOR = { muted: C.muted2, green: C.green, yellow: C.yellow, blue: C.blue, red: C.red } as const;
-const CARD_TINT: Record<AgentState, { border: string; background: string }> = {
-  starting: { border: C.border, background: C.surface },
-  active: { border: 'rgba(74,222,128,0.22)', background: C.surface },
-  hesitating: { border: 'rgba(250,204,21,0.4)', background: 'rgba(250,204,21,0.035)' },
-  blocked: { border: 'rgba(248,113,113,0.45)', background: 'rgba(248,113,113,0.045)' },
-  done: { border: C.border2, background: C.surface },
+const TONE_RGB = { muted: 'var(--pp-muted-rgb)', green: 'var(--pp-accent-rgb)', yellow: 'var(--pp-yellow-rgb)', blue: 'var(--pp-blue-rgb)', red: 'var(--pp-red-rgb)' } as const;
+const OUTCOME: Record<NonNullable<SessionState['outcome']>, { text: string; ok: boolean }> = {
+  completed: { text: 'Reached the goal', ok: true }, gave_up: { text: 'Gave up', ok: false },
+  out_of_steps: { text: 'Out of patience', ok: false }, error: { text: 'Session crashed', ok: false },
 };
-const OUTCOME_LINE: Record<NonNullable<SessionState['outcome']>, string> = {
-  completed: 'Reached the goal', gave_up: 'Gave up', out_of_steps: 'Ran out of patience', error: 'The session crashed',
-};
-const THUMB_H = 150;
-
+const THUMB_H = 158;
 const clamp = (lines: number): CSSProperties => ({ display: '-webkit-box', WebkitLineClamp: lines, WebkitBoxOrient: 'vertical', overflow: 'hidden' });
+
+function Dots({ value, label }: { value: number; label: string }) {
+  return (
+    <span className="ac-dots" title={`${label} ${value}/5`}>
+      <span className="mono">{label}</span>
+      {[1, 2, 3, 4, 5].map((i) => <i key={i} data-on={i <= value} data-tone={value >= 4 ? 'good' : value >= 3 ? 'mid' : 'bad'} />)}
+    </span>
+  );
+}
 
 export default function AgentCard({ runId, s }: { runId: string; s: SessionState }) {
   const state = agentState(s);
   const tone = STATE_TONE[state];
   const color = TONE_COLOR[tone];
-  const tint = CARD_TINT[state];
   const stage = currentStage(s);
   const last = s.steps[s.steps.length - 1];
   const thought = [...s.steps].reverse().find((st) => st.reasoning)?.reasoning;
   const obs = s.observations[s.observations.length - 1];
-  const used = Math.max(0, s.patience - s.actions_left);
+  const total = s.patience || 1;
+  const used = Math.max(0, total - s.actions_left);
   const running = s.status === 'running';
+  const pips = Math.min(total, 24);
+  const usedPips = Math.round((used / total) * pips);
+  const low = s.actions_left / total < 0.25;
+  const outcome = s.outcome ? OUTCOME[s.outcome] : null;
 
   return (
-    <Link
-      to={agentPath(runId, s.session_id)}
-      aria-label={`${s.persona}, variant ${s.variant.toUpperCase()}: ${STATE_LABEL[state]}, at ${stage}. Open this agent.`}
-      className="pp-agent-card"
-      style={{
-        display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0, padding: 12, borderRadius: 8, textDecoration: 'none', color: C.text,
-        background: tint.background, border: `1px solid ${tint.border}`,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span className="mono" style={{ fontSize: 11, fontWeight: 600, color: C.text, background: C.surface2, border: `1px solid ${C.border2}`, borderRadius: 4, padding: '1px 6px' }}>{s.variant.toUpperCase()}</span>
-        <span className="mono" style={{ fontSize: 11, color: C.muted, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.session_id}</span>
-        <Tag tone={tone}>
-          <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: color, animation: running ? 'pp-pulse 1.4s ease-in-out infinite' : undefined }} />
-          {STATE_LABEL[state]}
-        </Tag>
-      </div>
+    <Link to={agentPath(runId, s.session_id)} className="ac-card" data-state={state}
+      style={{ '--ac-rgb': TONE_RGB[tone] } as CSSProperties}
+      aria-label={`${s.persona}, variant ${s.variant.toUpperCase()}: ${STATE_LABEL[state]}, at ${stage}. Open this agent.`}>
+      <style>{CSS}</style>
 
-      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', minHeight: 54 }}>
-        <span style={{ paddingTop: 1 }}><StageIcon stage={stage} color={color} /></span>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>
-            {stage}
-            {s.outcome && <span style={{ fontWeight: 400, color: s.outcome === 'completed' ? C.blue : C.red }}> · {OUTCOME_LINE[s.outcome]}</span>}
-          </div>
-          <div style={{ fontSize: 12, lineHeight: 1.45, color: C.muted2, marginTop: 2, ...clamp(2) }}>
-            {thought ?? (state === 'starting' ? 'Waiting for its container and browser.' : 'Looking at the page.')}
-          </div>
+      {/* a mini browser showing what the agent sees */}
+      <div className="ac-browser">
+        <div className="ac-chrome">
+          <span className="ac-lights"><i /><i /><i /></span>
+          <span className="ac-url"><StageIcon stage={stage} color={color} size={12} /><span>{stage}</span></span>
+          <span className="ac-variant mono">{s.variant.toUpperCase()}</span>
+        </div>
+        <div className="ac-shot">
+          {last ? <Screenshot runId={runId} sessionId={s.session_id} idx={last.idx} device={s.device} maxHeight={THUMB_H} style={{ height: THUMB_H, alignItems: 'center', borderRadius: 0, border: 0 }} />
+            : <div className="ac-wait"><span className="ac-spin" aria-hidden="true" />Starting its browser…</div>}
+          <span className={`ac-state ${outcome ? (outcome.ok ? 'ok' : 'bad') : ''}`}>
+             <span className="ac-state-dot" style={{ background: color, animation: running ? "pp-pulse 1.2s ease-in-out infinite" : undefined }} />
+            {outcome ? outcome.text : STATE_LABEL[state]}
+          </span>
         </div>
       </div>
 
-      {last ? (
-        <Screenshot runId={runId} sessionId={s.session_id} idx={last.idx} device={s.device} maxHeight={THUMB_H} style={{ height: THUMB_H, alignItems: 'center' }} />
-      ) : (
-        <div style={{ height: THUMB_H, borderRadius: 6, border: `1px dashed ${C.border2}`, background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.muted, fontSize: 12 }}>
-          <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: C.muted, animation: 'pp-pulse 1.4s ease-in-out infinite' }} />
-          Starting container…
-        </div>
-      )}
+      <div className="ac-body">
+        <div><span className="ac-label">Current intent</span><div className="ac-thought" style={clamp(2)}>{thought ?? (state === 'starting' ? 'Waiting for its container and browser.' : 'Looking at the page.')}</div></div>
 
-      <div>
-        <PatienceBar left={s.actions_left} total={s.patience || 1} />
-        <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 11, color: C.muted, marginTop: 5 }}>
-          <span>{used} {used === 1 ? 'action' : 'actions'}</span>
-          <span style={{ color: s.actions_left / (s.patience || 1) < 0.25 ? C.red : C.muted }}>{s.actions_left} left</span>
-        </div>
-      </div>
-
-      {obs && (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', minWidth: 0 }}>
-          <span style={{ flexShrink: 0 }}><KindTag kind={obs.kind} severity={obs.severity} /></span>
-          <span style={{ fontSize: 12, lineHeight: 1.45, color: C.muted2, minWidth: 0, ...clamp(2) }}>{obs.text}</span>
-        </div>
-      )}
-
-      {s.exit_survey && (
-        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 'auto' }}>
-          <div style={{ fontSize: 12, lineHeight: 1.5, color: C.text, borderLeft: `2px solid ${color}`, paddingLeft: 10, ...clamp(3) }}>“{s.exit_survey.summary}”</div>
-          <div className="mono" style={{ fontSize: 11, color: C.muted2, marginTop: 6 }}>
-            ease {s.exit_survey.ease} · trust {s.exit_survey.trust}{s.exit_survey.would_return ? ' · would return' : ' · would not return'}
+        <div>
+          <div className="ac-pips" role="img" aria-label={`Patience: ${s.actions_left} of ${total} actions left`}>
+            {Array.from({ length: pips }, (_, i) => <i key={i} data-used={i < usedPips} data-low={low} />)}
           </div>
+          <div className="mono ac-meta"><span>{used} actions</span><span style={{ color: low ? C.red : C.muted }}>{s.actions_left} patience left</span></div>
         </div>
-      )}
+
+        {obs && (
+          <div className="ac-obs" data-tone={KIND_TONE[obs.kind]}>
+            <span className="mono ac-kind">{obs.kind} · {obs.severity}</span>
+            <span style={clamp(2)}>{obs.text}</span>
+          </div>
+        )}
+
+        {s.exit_survey && (
+          <div className="ac-exit">
+            <div className="ac-quote" style={clamp(3)}>{s.exit_survey.summary}</div>
+            <div className="ac-scores">
+              <Dots value={s.exit_survey.ease} label="ease" />
+              <Dots value={s.exit_survey.trust} label="trust" />
+              <span className={`ac-return ${s.exit_survey.would_return ? 'yes' : 'no'}`}>{s.exit_survey.would_return ? 'Would return' : 'Would not return'}</span>
+            </div>
+          </div>
+        )}
+      </div>
     </Link>
   );
 }
+
+const CSS = `
+.ac-card { --ac-rgb: var(--pp-muted-rgb); display: flex; flex-direction: column; min-width: 0; border-radius: 10px; overflow: hidden; text-decoration: none; color: var(--pp-text);
+  background: var(--pp-surface); border: 1px solid var(--pp-border); border-top: 2px solid rgba(var(--ac-rgb), 0.75);
+  transition: box-shadow .15s, border-color .15s; }
+.ac-card:hover { border-color: rgba(var(--ac-rgb), 0.6); box-shadow: 0 4px 14px var(--pp-shadow); }
+
+.ac-browser { background: var(--pp-bg); border-bottom: 1px solid var(--pp-border); }
+.ac-chrome { display: flex; align-items: center; gap: 8px; padding: 7px 9px; background: var(--pp-surface2); border-bottom: 1px solid var(--pp-border); }
+.ac-lights { display: inline-flex; gap: 4px; }
+.ac-lights i { width: 7px; height: 7px; border-radius: 50%; background: var(--pp-border2); }
+
+.ac-url { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 6px; background: var(--pp-bg); border: 1px solid var(--pp-border); font-size: 11px; color: var(--pp-muted2); }
+.ac-url span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ac-variant { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 5px; background: var(--pp-surface); border: 1px solid var(--pp-border2); }
+.ac-shot { position: relative; }
+.ac-wait { height: ${THUMB_H}px; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--pp-muted); font-size: 12px; }
+.ac-spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--pp-border2); border-top-color: var(--pp-accent); animation: ac-spin .8s linear infinite; }
+@keyframes ac-spin { to { transform: rotate(360deg); } }
+.ac-state { position: absolute; left: 8px; bottom: 8px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 6px; font-size: 11px; font-weight: 600;
+  background: var(--pp-glass); border: 1px solid rgba(var(--ac-rgb), 0.45); color: rgb(var(--ac-rgb)); }
+.ac-state.ok { color: var(--pp-accent); border-color: rgba(var(--pp-accent-rgb),0.5); }
+.ac-state.bad { color: var(--pp-red); border-color: rgba(var(--pp-red-rgb),0.5); }
+.ac-state-dot { width: 6px; height: 6px; border-radius: 50%; }
+.ac-body { display: flex; flex-direction: column; gap: 12px; padding: 12px 13px 13px; flex: 1; }
+.ac-thought { font-size: 12.5px; line-height: 1.45; color: var(--pp-text); }
+.ac-label { display: block; font: 600 9.5px 'JetBrains Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pp-muted); margin-bottom: 3px; }
+.ac-pips { display: flex; gap: 2px; }
+.ac-pips i { flex: 1; height: 5px; border-radius: 1px; background: var(--pp-accent); }
+.ac-pips i[data-low="true"] { background: var(--pp-yellow); }
+.ac-pips i[data-used="true"] { background: var(--pp-border); }
+.ac-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 10.5px; color: var(--pp-muted); margin-top: 6px; }
+.ac-obs { display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.45; color: var(--pp-muted2); padding: 8px 10px; border-radius: 6px;
+  background: rgba(var(--pp-blue-rgb),0.05); border-left: 2px solid var(--pp-blue); }
+.ac-obs[data-tone="red"] { background: rgba(var(--pp-red-rgb),0.07); border-left-color: var(--pp-red); }
+.ac-obs[data-tone="yellow"] { background: rgba(var(--pp-yellow-rgb),0.07); border-left-color: var(--pp-yellow); }
+.ac-obs[data-tone="green"] { background: rgba(var(--pp-accent-rgb),0.07); border-left-color: var(--pp-accent); }
+.ac-kind { font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pp-muted); }
+.ac-exit { margin-top: auto; padding-top: 11px; border-top: 1px dashed var(--pp-border); display: flex; flex-direction: column; gap: 9px; }
+.ac-quote { font-size: 12.5px; line-height: 1.5; color: var(--pp-text); }
+.ac-quote { font-style: italic; color: var(--pp-muted2); }
+.ac-scores { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.ac-dots { display: inline-flex; align-items: center; gap: 3px; }
+.ac-dots .mono { font-size: 10px; color: var(--pp-muted); margin-right: 3px; text-transform: uppercase; letter-spacing: 0.08em; }
+.ac-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--pp-border); }
+.ac-dots i[data-on="true"][data-tone="good"] { background: var(--pp-accent); } .ac-dots i[data-on="true"][data-tone="mid"] { background: var(--pp-yellow); } .ac-dots i[data-on="true"][data-tone="bad"] { background: var(--pp-red); }
+.ac-return { margin-left: auto; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 5px; }
+.ac-return.yes { color: var(--pp-accent); background: rgba(var(--pp-accent-rgb),0.1); } .ac-return.no { color: var(--pp-red); background: rgba(var(--pp-red-rgb),0.1); }
+`;
