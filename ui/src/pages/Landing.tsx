@@ -1,7 +1,9 @@
 // Landing: what the product does, shown with the most recent real test (or a captioned example).
 import { Link } from 'react-router';
-import { sessionList, useRun, useRuns, type RunState, type SessionState } from '../lib/api';
-import { SENTIMENT_HELP, agentState, initials, pct, sentimentOf, sentimentTone, testName, testPath } from '../lib/derive';
+import { useEffect, useState } from 'react';
+import { getRun, sessionList, useRun, useRuns, type RunState, type RunSummary, type SessionState } from '../lib/api';
+import Crowd, { crowdStages } from '../components/Crowd';
+import { SENTIMENT_HELP, agentState, initials, pct, sentimentOf, sentimentTone, testName, testPath, variantName } from '../lib/derive';
 import { C, Tag } from '../lib/ui';
 import { Avatar } from './newtest/bits';
 
@@ -48,9 +50,37 @@ const EXAMPLE: Snapshot = {
   sentiment: 0.62, total: 6, done: 4, blocked: 2, working: 0, friction: 0.19,
 };
 
+/**
+ * The most telling recent test to replay: a finished A/B test whose agents move through several
+ * journey stages (a site whose URL never changes can't show where people get stuck), with the most agents.
+ */
+function useShowcase(runs: RunSummary[] | null): string | null {
+  const [best, setBest] = useState<string | null>(null);
+  const key = runs?.map((r) => `${r.run_id}:${r.status}`).join(',') ?? '';
+  useEffect(() => {
+    if (!runs?.length) return;
+    const candidates = runs.filter((r) => r.status === 'finished' && (r.variants?.length ?? 0) >= 2 && (r.sessions ?? 0) >= 4).slice(0, 8);
+    if (!candidates.length) { setBest(runs[0]!.run_id); return; }
+    let stop = false;
+    Promise.allSettled(candidates.map((c) => getRun(c.run_id))).then((results) => {
+      if (stop) return;
+      const scored = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : [])).map((run) => {
+        const sessions = sessionList(run);
+        const staged = crowdStages(sessions).stages.length >= 3 && !crowdStages(sessions).stages[0]!.startsWith('Actions');
+        return { id: run.run_id, score: (staged ? 1000 : 0) + sessions.length };
+      });
+      scored.sort((a, b) => b.score - a.score);
+      setBest(scored[0]?.id ?? candidates[0]!.run_id);
+    });
+    return () => { stop = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return best;
+}
+
 export default function Landing() {
   const { runs, error: runsError } = useRuns();
-  const newest = runs?.[0]?.run_id ?? null;
+  const newest = useShowcase(runs);
   const { run, error: runError } = useRun(newest);
   const usable = run && Object.keys(run.sessions).length > 0 ? run : null;
   const failed = runsError != null || runError != null || (runs != null && runs.length === 0) || (run != null && !usable);
@@ -60,21 +90,30 @@ export default function Landing() {
     <div>
       <style>{CSS}</style>
       <section className="ld-hero">
-        <div style={{ minWidth: 0 }}>
+        <div className="ld-glow" aria-hidden="true" />
+        <div className="ld-head">
           <span className="tag-green mono" style={{ fontSize: 10, letterSpacing: '0.1em', padding: '4px 10px' }}><span className="dot-green" />AGENT POPULATION TESTING</span>
-          <h1 style={{ margin: '22px 0 20px', fontSize: 'clamp(34px, 5.2vw, 52px)', fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.05 }}>Build a population of sandboxed customer agents</h1>
-          <p style={{ margin: 0, color: C.muted2, fontSize: 16, lineHeight: 1.65, maxWidth: 480 }}>
-            Give two variants of a site to a panel of AI personas. Each one uses a real Chromium browser in its own container, thinking out loud while you watch.
-            When they finish, an evaluator names the winner and points at the screenshots that prove it.
+          <h1 className="ld-title">Send a crowd of AI customers<br /><span>through your site first.</span></h1>
+          <p style={{ margin: '0 auto', color: C.muted2, fontSize: 16, lineHeight: 1.65, maxWidth: 620 }}>
+            Every persona gets a real Chromium browser in its own container, then shops, hesitates, complains and gives up like a person would.
+            Watch where the crowd gets stuck, hear what they say, and let an evaluator name the winner with screenshots as proof.
           </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 32 }}>
-            <Link to="/new" className="btn-primary" style={{ textDecoration: 'none', padding: '11px 22px', fontSize: 14 }}>Get started</Link>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 10, marginTop: 30 }}>
+            <Link to="/new" className="btn-primary" style={{ textDecoration: 'none', padding: '11px 22px', fontSize: 14 }}>Start a test</Link>
             <button type="button" className="btn-secondary" style={{ padding: '11px 22px', fontSize: 14 }} onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}>See how it works</button>
           </div>
         </div>
 
-        <div style={{ minWidth: 0 }} aria-label={snap?.example ? 'Example test' : 'Latest test'}>
-          {snap ? <Cards snap={snap} /> : <div aria-busy="true" style={{ display: 'grid', gap: 12 }}><div className="card" style={{ height: 210, opacity: 0.5 }} /><div className="ld-pair"><div className="card" style={{ height: 170, opacity: 0.5 }} /><div className="card" style={{ height: 170, opacity: 0.5 }} /></div></div>}
+        <div className="ld-stage" aria-label={usable ? 'Replay of a real test' : 'Latest test'}>
+          {usable && sessionList(usable).some((x) => x.steps.length > 0) ? (
+            <>
+              <Crowd sessions={sessionList(usable)} runId={usable.run_id} mode={usable.status === 'finished' || usable.status === 'failed' ? 'replay' : 'live'}
+                variantLabel={(v) => variantName(v, usable.config)} caption={testName(usable)} />
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 12, textAlign: 'center' }}>
+                Real agents from a real test, replayed. <Link to={testPath(usable.run_id)} className="ld-link" style={{ fontSize: 12 }}>Open the full test</Link>
+              </div>
+            </>
+          ) : snap ? <Cards snap={snap} /> : <div aria-busy="true" className="card" style={{ height: 360, opacity: 0.4, borderRadius: 16 }} />}
         </div>
       </section>
 
@@ -195,7 +234,16 @@ function HowStep({ n, title, children }: { n: string; title: string; children: s
 }
 
 const CSS = `
-.ld-hero { max-width: 1120px; margin: 0 auto; padding: 88px 24px 96px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 460px); gap: 72px; align-items: center; }
+.ld-hero { position: relative; max-width: 1240px; margin: 0 auto; padding: 84px 24px 88px; overflow: hidden; }
+.ld-glow { position: absolute; inset: -20% -10% auto; height: 720px; pointer-events: none; z-index: 0;
+  background: radial-gradient(45% 55% at 50% 20%, rgba(74,222,128,0.16), transparent 70%), radial-gradient(30% 40% at 80% 60%, rgba(96,165,250,0.08), transparent 70%);
+  -webkit-mask-image: linear-gradient(#000, transparent); mask-image: linear-gradient(#000, transparent); }
+.ld-glow::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px); background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(60% 60% at 50% 30%, #000, transparent); mask-image: radial-gradient(60% 60% at 50% 30%, #000, transparent); }
+.ld-head { position: relative; z-index: 1; text-align: center; max-width: 1060px; margin: 0 auto 52px; }
+.ld-title { margin: 22px 0 20px; font-size: clamp(34px, 5.6vw, 62px); font-weight: 700; letter-spacing: -0.04em; line-height: 1.02; }
+.ld-title span { background: linear-gradient(90deg, #4ade80, #a3e635 40%, #60a5fa); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.ld-stage { position: relative; z-index: 1; }
 .ld-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .ld-band { border-top: 1px solid #1e2230; }
 .ld-cols, .ld-inner { max-width: 1120px; margin: 0 auto; padding: 64px 24px; }
@@ -204,7 +252,8 @@ const CSS = `
 .ld-link { color: #4ade80; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(74,222,128,0.35); }
 .ld-link:hover { text-decoration-color: #4ade80; }
 @media (max-width: 900px) {
-  .ld-hero { grid-template-columns: minmax(0, 1fr); gap: 48px; padding: 48px 16px 64px; }
+  .ld-hero { padding: 48px 16px 64px; }
+  .ld-head { margin-bottom: 36px; }
   .ld-cols, .ld-steps { grid-template-columns: minmax(0, 1fr); }
   .ld-cols { gap: 32px; }
   .ld-cols, .ld-inner { padding: 48px 16px; }
