@@ -5,7 +5,7 @@ limited amount of patience. It uses one variant of your site in a real Chromium 
 Modal container, thinks out loud, and records what confused, broke or pleased it. An evaluator agent
 then names a winner and cites screenshots as evidence.
 
-- **Live app:** https://polypersona.bloomhealth.workers.dev (sign in with an account from `POLYPERSONA_USERS`)
+- **Live app:** https://polypersona.pages.dev (sign in with an account from `POLYPERSONA_USERS`)
 - **API:** https://shehrum--polypersona-web.modal.run
 - **Architecture:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
@@ -84,12 +84,13 @@ Then in the browser:
 4. **Results** tab: verdict, metrics, issues with screenshot evidence, and questions to the evaluator.
 5. **Personas**: upload a customer CSV (or describe an audience) to create your own panel.
 
-### Deploy the UI to Cloudflare
+### Deploy the UI to Cloudflare Pages
 
 ```bash
 cd ui
 npx wrangler login                        # once
-npm run build && npx wrangler deploy      # prints the workers.dev URL
+npm run build
+npx wrangler pages deploy dist --project-name polypersona --branch main --force   # https://polypersona.pages.dev
 ```
 
 ## Costs and limits

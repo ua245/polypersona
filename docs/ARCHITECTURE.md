@@ -8,7 +8,7 @@ between them, and the decisions behind the design.
 
 ```mermaid
 flowchart LR
-  subgraph CF[Cloudflare Workers]
+  subgraph CF[Cloudflare Pages]
     UI[React UI\nstatic single page app]
   end
   subgraph MODAL[Modal]
@@ -38,7 +38,7 @@ Three runtimes, each doing what it is good at:
 
 | Runtime | Runs | Why there |
 |---|---|---|
-| **Cloudflare Workers** | The UI, as static assets with single page app fallback | Free, global, instant deploys. The UI has no server logic. |
+| **Cloudflare Pages** | The UI, as static assets with single page app fallback | Free, global, instant deploys. The UI has no server logic. |
 | **Modal** | The API, the orchestrator, and one container per agent session | Needs Python, Playwright and Chromium, minutes-long jobs, and fan out. Workers and serverless functions cannot do that. |
 | **Gemini** | The model behind every agent | Multimodal, accurate at pointing on a screenshot, cheap at the Flash tier. |
 
