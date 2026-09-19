@@ -172,3 +172,32 @@ def test_access_headers_reach_the_site_under_test_only_and_are_hidden_in_stored_
 
     stored = public_config(RunConfig(url_a="https://x.test", goal="g", access_headers={"x-polypersona-key": "s3cret"}))
     assert "s3cret" not in json.dumps(stored) and stored["access_headers"] == {"x-polypersona-key": "hidden"}
+
+
+def test_gateway_guardrail_timeouts_are_retried():
+    import httpx
+
+    from polypersona.llm import GeminiThoughtSignatures
+
+    calls = []
+
+    class Flaky(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            calls.append(1)
+            if len(calls) < 3:
+                return httpx.Response(400, json={"code": "gateway_guardrail_timeout", "message": "not forwarded"}, request=request)
+            return httpx.Response(200, json={"choices": []}, request=request)
+
+    async def scenario():
+        transport = GeminiThoughtSignatures()
+        transport._inner = Flaky()
+        async with httpx.AsyncClient(transport=transport) as client:
+            return await client.post("https://gateway.test/proxy/persona/chat/completions", json={"messages": []})
+
+    import polypersona.llm as llm
+    real_sleep, llm.asyncio.sleep = llm.asyncio.sleep, (lambda *_: real_sleep(0))
+    try:
+        response = asyncio.run(scenario())
+    finally:
+        llm.asyncio.sleep = real_sleep
+    assert response.status_code == 200 and len(calls) == 3

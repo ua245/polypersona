@@ -12,6 +12,7 @@ credentials live in the Gateway (BYOK), never in this app.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from typing import Any
@@ -56,6 +57,17 @@ class GeminiThoughtSignatures(httpx.AsyncBaseTransport):
         if request.method == "POST" and request.url.path.endswith("/chat/completions"):
             request = self._attach(request)
         response = await self._inner.handle_async_request(request)
+        # The Gateway sometimes runs out of time evaluating a guardrail and refuses the request (HTTP 400,
+        # code gateway_guardrail_timeout). Nothing was forwarded, so asking again is safe and usually works.
+        for attempt in range(3):
+            if response.status_code != 400:
+                break
+            body = await response.aread()
+            if b"gateway_guardrail_timeout" not in body:
+                headers = [(k, v) for k, v in response.headers.multi_items() if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")]
+                return httpx.Response(response.status_code, headers=headers, content=body, request=request, extensions=response.extensions)
+            await asyncio.sleep(1.5 * (attempt + 1))
+            response = await self._inner.handle_async_request(request)
         if not request.url.path.endswith("/chat/completions") or response.status_code != 200:
             return response
         body = await response.aread()
