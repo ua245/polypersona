@@ -6,15 +6,12 @@ import time
 from dataclasses import dataclass, field
 from typing import Awaitable, Callable, Literal
 
-from google.genai.types import HttpRetryOptions
-
 from pydantic_ai import Agent, BinaryContent, RunContext, ToolReturn
 from pydantic_ai.capabilities import ProcessHistory
 from pydantic_ai.messages import ModelMessage, ModelRequest
-from pydantic_ai.models.google import GoogleModel
-from pydantic_ai.providers.google import GoogleProvider
 
 from .browser import BrowserSession
+from .llm import make_model  # noqa: F401 - re-exported for session, personas and evaluator
 from .models import ExitSurvey, Observation, ObservationKind, Persona, StepRecord, TestTask
 
 PERSONA_MODEL = os.environ.get("PERSONA_MODEL", "gemini-3.8-flash")
@@ -22,12 +19,6 @@ KEEP_SCREENSHOTS = 3
 
 # Called after every step and observation so a live view can follow the session.
 EventSink = Callable[[dict], Awaitable[None]]
-
-
-def make_model(name: str) -> GoogleModel:
-    """All sessions share one Gemini quota, so back off on 429 and 5xx instead of failing the session."""
-    retry = HttpRetryOptions(attempts=6, initial_delay=2.0, max_delay=40.0, http_status_codes=[429, 500, 502, 503, 504])
-    return GoogleModel(name.removeprefix("google:"), provider=GoogleProvider(api_key=os.environ.get("GOOGLE_API_KEY"), retry_options=retry))
 
 
 @dataclass
@@ -93,10 +84,31 @@ persona_agent = Agent(
 )
 
 
+# Payment details never go to the model. It types a placeholder and the tool layer fills in the
+# real value, so a Gateway guardrail can redact card numbers without breaking checkout.
+PRIVATE_FIXTURES = {"card number", "card CVC"}
+
+
+def _placeholder(key: str) -> str:
+    return "{" + key + "}"
+
+
+def _shown(key: str, value: str) -> str:
+    if key in PRIVATE_FIXTURES:
+        return f"type {_placeholder(key)} exactly; your browser's saved card fills in the real value"
+    return value
+
+
+def fill_placeholders(text: str, fixtures: dict[str, str]) -> str:
+    for key in PRIVATE_FIXTURES & fixtures.keys():
+        text = text.replace(_placeholder(key), fixtures[key])
+    return text
+
+
 @persona_agent.instructions
 def _instructions(ctx: RunContext[SessionDeps]) -> str:
     p, t = ctx.deps.persona, ctx.deps.task
-    fixtures = "\n".join(f"- {k}: {v}" for k, v in t.fixtures.items()) or "- none"
+    fixtures = "\n".join(f"- {k}: {_shown(k, v)}" for k, v in t.fixtures.items()) or "- none"
     reading = (
         "You skim. You read headings and buttons, not paragraphs or fine print."
         if p.reading_style == "skims"
@@ -166,7 +178,8 @@ async def click(ctx: RunContext[SessionDeps], x: int, y: int, reasoning: str) ->
 @persona_agent.tool
 async def type_text(ctx: RunContext[SessionDeps], x: int, y: int, text: str, reasoning: str, press_enter: bool = False) -> ToolReturn | str:
     """Click a text field at a point on the 0-1000 grid, replace its contents with `text`, and optionally press Enter."""
-    return await _act(ctx, "type_text", {"x": x, "y": y, "text": text}, reasoning, lambda: ctx.deps.browser.type_text(x, y, text, press_enter))
+    real = fill_placeholders(text, ctx.deps.task.fixtures)  # the record keeps the placeholder
+    return await _act(ctx, "type_text", {"x": x, "y": y, "text": text}, reasoning, lambda: ctx.deps.browser.type_text(x, y, real, press_enter))
 
 
 @persona_agent.tool
