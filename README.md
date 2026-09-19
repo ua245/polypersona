@@ -1,329 +1,310 @@
-# PolyPersona
+<p align="center">
+  <img src="logo.svg" alt="PolyPersona Logo" width="220" />
+</p>
 
-A/B test a website with AI persona agents. Each agent is a synthetic customer with a persona and a
-limited amount of patience. It uses one variant of your site in a real Chromium browser, inside its own
-Modal container, thinks out loud, and records what confused, broke or pleased it. An evaluator agent
-then names a winner and cites screenshots as evidence.
+<h1 align="center">PolyPersona</h1>
 
-- **Live app:** https://polypersona.pages.dev (sign in with an account from `POLYPERSONA_USERS`)
-- **API:** https://shehrum--polypersona-web.modal.run
-- **Architecture:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+<p align="center">
+  <strong>Autonomous AI Persona Panels for Website &amp; UX A/B Testing</strong><br />
+  <em>Real browsers. Diverse customer personas. Empirical friction detection. Evidence-backed verdicts.</em>
+</p>
 
-## What you need
+<p align="center">
+  <a href="https://polypersona.pages.dev"><strong>Live Web App</strong></a> &bull;
+  <a href="https://shehrum--polypersona-web.modal.run"><strong>Modal Cloud API</strong></a> &bull;
+  <a href="docs/ARCHITECTURE.md"><strong>Architecture Guide</strong></a>
+</p>
 
-| Thing | Why | Where to get it |
+---
+
+## Overview
+
+**PolyPersona** runs panels of synthetic AI persona agents against one or two variants of any live website. Each agent embodies a distinct human persona with defined digital savviness, demographic context, reading behavior, device preferences, and a finite budget of patience.
+
+Operating inside isolated cloud containers with real Chromium browsers, persona agents navigate your site, attempt assigned user goals, think out loud, and capture real-time observations of friction, bugs, confusion, and delight. After the test runs, an AI Evaluator synthesizes metrics computed deterministically in code alongside screenshot evidence to declare an empirical winner, highlight core friction areas, and provide actionable UX recommendations.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                              PolyPersona                               │
+├─────────────────────┬──────────────────────────┬───────────────────────┤
+│  Browser Automation │    Behavioral Personas   │    Evidence Engine    │
+│  Playwright + async │  Calibrated patience,    │  Dead-click detection,│
+│  0–1000 coordinate  │  viewport sizes, device  │  backtracks, visual   │
+│  grid interaction   │  profiles & reading styles│  filmstrips & videos  │
+└─────────────────────┴──────────────────────────┴───────────────────────┘
+```
+
+---
+
+## System Architecture
+
+PolyPersona cleanly decouples responsibilities across three runtimes:
+
+```
+                            ┌────────────────────────┐
+                            │    Cloudflare Pages    │
+                            │   React 19 + Vite UI   │
+                            └───────────┬────────────┘
+                                        │ HTTPS / Polling (1s)
+                                        ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                             Modal Cloud                                │
+│                                                                        │
+│   ┌────────────────────────────────────────────────────────────────┐   │
+│   │               FastAPI ASGI Endpoint (modal_app.py)             │   │
+│   └───────────────┬───────────────────────────────┬────────────────┘   │
+│                   │ spawns                        │ reads/writes       │
+│                   ▼                               ▼                    │
+│   ┌───────────────────────────────┐     ┌──────────────────────────┐   │
+│   │ Cloud Orchestrator (execute)  │◄───►│ modal.Dict (Shared State)│   │
+│   └───────────────┬───────────────┘     └──────────────┬───────────┘   │
+│                   │ starmap fan-out                    │               │
+│                   ▼                                    │ reads control │
+│   ┌───────────────────────────────┐                    │ (guide/stop)  │
+│   │ Remote Agent Container (×N)   │────────────────────┘               │
+│   │ ├─ Playwright + Chromium      │                                    │
+│   │ ├─ Pydantic AI PersonaAgent   │────► modal.Queue (Step Events)     │
+│   │ └─ Change Detection & Cursor  │                                    │
+│   └───────────────┬───────────────┘                                    │
+└───────────────────┼────────────────────────────────────────────────────┘
+                    │ LLM calls / Tracing
+                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Model & Gateway Layer                           │
+│                                                                        │
+│  Direct: Gemini API (gemini-3.8-flash / gemini-pro-latest)             │
+│  Gateway: Pydantic AI Gateway                                          │
+│   ├── Endpoint: persona                                                │
+│   ├── Rule: UX Evidence Protocol (System Message Injection)           │
+│   ├── Guardrail: Payment Card Number (Network-level Redaction)         │
+│   └── Telemetry: Logfire Tracing per session                           │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Component Breakdown
+
+| Layer | Technology | Responsibilities |
 |---|---|---|
-| Python 3.12 and [uv](https://docs.astral.sh/uv/) | runs everything in Python | `brew install uv` |
-| Node 20 or newer | builds the UI | `brew install node` |
-| Gemini API key | persona agents, evaluator, persona generator | https://aistudio.google.com/apikey |
-| Modal account | one container per agent, hosts the API | https://modal.com (free credit is enough) |
-| Cloudflare account | hosts the UI (optional, only to deploy it) | https://dash.cloudflare.com |
+| **Frontend UI** (`website/`) | React 19, TypeScript, Vite, Tailwind CSS v4, React Router 8 | Interactive dashboard, workspace test history, live agent monitor with scrubber & live nudging, persona directory & CSV population importer, and cross-session insights. |
+| **Cloud Backend** (`modal_app.py`, `polypersona/cloud.py`) | Modal Functions, FastAPI ASGI | Authentication (HMAC session tokens), run lifecycle orchestration, asynchronous task dispatching, live event streaming, and state storage via `modal.Dict`. |
+| **Agent Execution Engine** (`polypersona/`) | Playwright, Pydantic AI, Python 3.12 | Headless Chromium automation, normalized 0–1000 coordinate vision-based actions, DOM/state fingerprinting, action budget tracking, and real-time step streaming. |
+| **Evaluation Engine** (`polypersona/evaluator.py`, `metrics.py`) | Pydantic AI, Gemini Pro | Deterministic metrics calculation (completion rates, dead clicks, backtrack count, duration, ease/trust scores) combined with multimodal evidence-based judging. |
+| **Gateway & Guardrails** (`scripts/`, `polypersona/llm.py`) | Pydantic AI Gateway, Logfire | UX evidence protocol optimization rule, automated credit card redaction guardrail, and telemetry tracking. |
+| **Demo Target** (`site/`) | Vanilla JS, CSS, HTML | Self-contained multi-variant coffee shop (`a`: clean guest checkout, `b`: dark patterns & bugs, `c`: fast subscription redesign) running locally inside agent containers without external hosting. |
 
-## Keys and settings
+---
 
-Everything lives in `.env` at the repo root (never committed). Copy `.env.example` and fill it in.
+## Core Features
 
-| Variable | Required | Purpose |
+### 1. Human-Calibrated Persona Panel
+- **Patience Budgets:** Hard limits on browser actions (8 to 40 steps) based on digital confidence. When patience runs out, agents genuinely abandon the cart or flow.
+- **Reading Profiles:** Skimmers scan headlines, buttons, and callouts; careful readers digest body copy, terms, and notices.
+- **Device & Viewport Clamping:** Tests on desktop (1280×800) or mobile (390×844) viewports, including customer-specific dimensions extracted from CRM data.
+- **Audience & CRM Ingestion:** Import real customer lists from CSV (`polypersona/population.py`) or generate targeted demographic cohorts via Gemini.
+
+### 2. Vision-Based Browser Navigation
+- **Normalized 0–1000 Grid:** The agent addresses screen elements using relative coordinates against screenshots, independent of underlying resolution.
+- **DOM & State Fingerprinting:** Detects whether an action triggered genuine DOM, URL, scroll, focus, or form changes. Clicks with zero state delta are flagged as **dead clicks**.
+- **In-Flight Guidance & Interventions:** Operators can view live screens, inject guidance ("a friend looking over your shoulder suggests..."), or issue emergency stops.
+- **Automated Cursor & Video Generation:** Recorded Playwright sessions produce smooth `.webm` replays with visible action markers (hidden from the agent's prompt to avoid bias).
+
+### 3. Pydantic AI Gateway, Rules & Guardrails
+- **UX Evidence Protocol:** A Gateway optimization rule injected into the system prompt that forces observations to cite the exact on-screen label or button in quotes (`"Button" — problem`). Yields 100% quoted UI text and improves recall of planted UX flaws.
+- **Zero-Leak Payment Guardrail:** Redacts credit card patterns (`\b(?:\d[ -]?){12,18}\d\b`) at the network gateway boundary before requests hit the model. Browser tools inject test credentials locally, allowing checkout completion without exposing sensitive numbers to LLMs.
+- **Full Observability:** End-to-end tracing in Logfire for every session, model call, and tool execution.
+
+### 4. Deterministic Metrics & Evidence-Backed Verdicts
+- **Numbers in Code, Words from the Model:** Completion rates, durations, dead clicks, backtracks, and severity distributions are computed deterministically in `metrics.py`.
+- **Grounded Critic:** The Evaluator agent references specific sessions and steps (`session_id#step_idx`) for every reported issue and inspects screenshots before making claims.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+| Tool | Purpose | Installation |
 |---|---|---|
-| `GEMINI_API_KEY` | yes | Gemini access. `GOOGLE_API_KEY` works too. |
-| `POLYPERSONA_TOKEN` | for the web app | Long random string. Signs login sessions and is also accepted as a master bearer token. |
-| `POLYPERSONA_USERS` | for the web app | Accounts for the UI: `name:password,name2:password2`. |
-| `PERSONA_MODEL` | no | Default `gemini-3.8-flash`. |
-| `EVALUATOR_MODEL` | no | Default `gemini-pro-latest`. |
-| `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET` | no | Only if you cannot use `~/.modal.toml`. |
+| **Python 3.12+** & **uv** | Python dependency manager and runtime | `curl -LsSf https://astral.sh/uv/install.sh \| sh` or `brew install uv` |
+| **Node.js 20+** & **pnpm** | Frontend development and build | `brew install node && npm install -g pnpm` |
+| **Gemini API Key** | Primary vision and evaluator LLM | [Google AI Studio](https://aistudio.google.com/apikey) |
+| **Modal Account** | Serverless container execution & cloud deployment | [modal.com](https://modal.com) (free tier includes sufficient credit) |
 
-Modal and Cloudflare credentials are not in `.env`. They are stored by their CLIs:
-`uv run modal token new` writes `~/.modal.toml`, and `npx wrangler login` stores a Cloudflare OAuth token.
+### Environment Configuration
 
-`modal_app.py` ships the whole `.env` to Modal as a secret at deploy time, so **redeploy after changing it**.
-
-## Setup
+Copy `.env.example` to `.env` and provide your keys:
 
 ```bash
-# 1. Python side
+cp .env.example .env
+```
+
+| Variable | Required | Description |
+|---|---|---|
+| `GEMINI_API_KEY` | **Yes** | API key for Gemini models (`GOOGLE_API_KEY` also supported) |
+| `POLYPERSONA_TOKEN` | Web App | Secret key for HMAC token signing and master API authentication |
+| `POLYPERSONA_USERS` | Web App | User accounts for web login (`username:password,user2:pass2`) |
+| `PERSONA_MODEL` | No | Model for persona agents (default: `gemini-3.8-flash` or Gateway route) |
+| `EVALUATOR_MODEL` | No | Model for jury evaluation (default: `gemini-pro-latest`) |
+| `PYDANTIC_AI_GATEWAY_BASE_URL` | Optional | Pydantic AI Gateway URL (e.g. `https://gateway-eu.pydantic.dev/proxy`) |
+| `PYDANTIC_AI_GATEWAY_API_KEY` | Optional | Gateway API authorization token |
+| `LOGFIRE_TOKEN` | Optional | Logfire token for distributed trace recording |
+
+---
+
+## Installation & Setup
+
+### 1. Backend & CLI Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/ua245/polypersona.git
+cd polypersona
+
+# Install Python dependencies and Playwright Chromium
 uv sync
 uv run playwright install chromium
-cp .env.example .env              # then fill in GEMINI_API_KEY, POLYPERSONA_TOKEN, POLYPERSONA_USERS
-uv run pytest                     # offline tests, no API calls
 
-# 2. Modal (once)
+# Verify offline test suite (no external API calls required)
+uv run pytest
+```
+
+### 2. Modal Cloud Authentication
+
+```bash
+# Authenticate Modal CLI (creates ~/.modal.toml)
 uv run modal token new
-
-# 3. UI
-cd ui && npm install
 ```
 
-## Run it
-
-### Option A: command line only (no UI, no deploy)
+### 3. Frontend Setup
 
 ```bash
-uv run python -m polypersona run --headed --personas 1        # watch a real browser on your machine
-uv run python -m polypersona run --modal --live --personas 3  # one Modal container per agent, live page
-uv run python -m polypersona ask runs/<id> "Why did Sofia fail on B?"
+cd website
+pnpm install
 ```
 
-Results land in `runs/<timestamp>/report.html` with recordings and a step by step filmstrip.
-Other flags: `--variants a,c`, `--repeats 3`, `--audience "busy parents"`, and for your own site
-`--url-a … --url-b … --goal "…" --success-text "Order confirmed"`.
+---
 
-### Option B: the web app
+## Execution Modes
+
+### Mode 1: Local CLI (No Cloud Deploy Required)
+
+Run tests locally with visible Chromium windows or headless concurrency:
 
 ```bash
-uv run modal deploy modal_app.py          # API + agents on Modal, prints the API URL
-cd ui && npm run dev                      # UI at http://localhost:5173
+# Run a single persona locally in a visible browser window
+uv run python -m polypersona run --headed --personas 1
+
+# Run 3 personas in parallel against the bundled demo coffee shop
+uv run python -m polypersona run --personas 3 --variants a,b
+
+# Run against your own live URLs with a custom goal
+uv run python -m polypersona run \
+  --url-a "https://example.com/checkout-v1" \
+  --url-b "https://example.com/checkout-v2" \
+  --goal "Buy one product and finish checkout" \
+  --success-text "Order confirmed"
+
+# Ask the evaluator follow-up questions about a finished run
+uv run python -m polypersona ask runs/<timestamp_or_id> "Why did Margaret abandon Variant B?"
 ```
 
-If your API URL differs from the default, start the UI with
-`VITE_API_URL=https://<you>--polypersona-web.modal.run npm run dev`.
+Results are saved to `runs/<timestamp>/report.html` with step-by-step filmstrips, action logs, and video replays.
 
-Then in the browser:
-1. **Sign in** with an account from `POLYPERSONA_USERS`.
-2. **New test**: choose **One website** (opinions and suggested improvements) or **Compare two variants** (A/B),
-   enter the URL or URLs, what people should try to do, optionally what you are trying to improve, and who tests it. Press **Start test**.
-3. **Live** tab: watch every agent. Click one to see its screen, its thinking, and to guide or stop it.
-4. **Results** tab: verdict, metrics, issues with screenshot evidence, and questions to the evaluator.
-5. **Personas**: upload a customer CSV (or describe an audience) to create your own panel.
+### Mode 2: Full Web App (Modal Cloud + React UI)
 
-### Deploy the UI to Cloudflare Pages
+Deploy the backend to Modal and launch the React dashboard:
 
 ```bash
-cd ui
-npx wrangler login                        # once
-npm run build
-npx wrangler pages deploy dist --project-name polypersona --branch main --force   # https://polypersona.pages.dev
-```
-
-## Costs and limits
-
-- A session uses roughly 100k to 200k Gemini tokens. Three personas on two variants is about 900k tokens and 3 minutes.
-- The API caps a test at 10 personas and 3 repeats. There is no daily limit unless you set `POLYPERSONA_DAILY_RUNS`.
-- Viewing tests needs no sign in at the API level. Starting tests, guiding agents, asking the evaluator and creating personas do.
-
-## Pydantic AI Gateway, rule and guardrail (hackathon)
-
-Every persona agent's model call goes through the Pydantic AI Gateway endpoint `persona`, which
-injects our optimization rule and applies our guardrail before the request reaches Gemini. Every
-agent run, model call and tool call is traced in Logfire. No agent code changes between "rule off"
-and "rule on": everything happens in the Gateway.
-
-```
-persona agent (Modal container) ──► Gateway endpoint "persona" ──► Gemini (BYOK Custom provider)
-                                      ├─ rule: UX evidence protocol (injected into the system message)
-                                      └─ guardrail: Payment card number (Redact)
-        └── Logfire: one "persona session <id>" trace per session
-```
-
-### Setup
-
-1. **Logfire → Gateway → Providers → add a Custom provider:** base URL
-   `https://generativelanguage.googleapis.com/v1beta/openai`, API key = your Gemini key, "Require pricing
-   data" off. Attach it to an endpoint named **`persona`**. Don't name an endpoint `gemini`: the
-   Gateway reserves that name as an alias for its Vertex route.
-2. **`.env`:**
-   ```
-   PYDANTIC_AI_GATEWAY_BASE_URL=https://gateway-eu.pydantic.dev/proxy   # the Gateway root, not the endpoint URL
-   PYDANTIC_AI_GATEWAY_API_KEY=<key with "Use AI Gateway">
-   LOGFIRE_TOKEN=<key with "Send telemetry">
-   PERSONA_MODEL=gateway/persona:gemini-3.8-flash
-   ```
-   If `PERSONA_MODEL` is missing, the agents silently call Gemini directly and the rule never applies.
-   Check this first if a run shows no change.
-3. Turn on the tabs by adding `#enableFlags=gateway_optimizations,gateway_guardrails_beta` to your
-   Logfire project URL and reloading. **Optimizations** and **Guardrails** then appear under Gateway.
-
-### The rule: `UX evidence protocol`
-
-Gateway → Optimizations → New optimization. Category **Style**, target route **`persona`** (whole route), status **On**:
-
-```
-UX EVIDENCE PROTOCOL. Applies to every observation you record.
-1. Begin the observation text with the exact visible label or message of the element it concerns, copied character for character inside double quotes. Then write " — " followed by the problem and its effect on you, in 25 words or fewer. Example: "Continue" — pale grey, looks disabled; I hesitated before clicking it.
-2. Record one observation per distinct problem. Never combine two problems in one observation.
-3. Keep every tool's reasoning argument to 12 words or fewer.
-```
-
-**Why:** persona feedback is the product. Without the rule it is loosely worded, so it's hard to
-act on, hard to check and hard to merge across personas. With it, every observation names the exact
-on-screen element, so it can be found on the page, checked in code and grouped with other reports.
-
-**Result.** Same code, same command, both runs through `persona`; only the rule differs. 3 personas × variants b, c:
-
-| Metric (variant b · variant c) | Rule off | Rule on |
-|---|---|---|
-| Observations leading with the quoted UI element | 0% · 12% | **100% · 100%** |
-| Observations quoting UI text at all | 62% · 62% | **100% · 100%** |
-| Quotes found verbatim in the site (not invented) | 12/12 · 4/5 | 19/20 · 3/3 |
-| Planted flaws found | 6/6 · 1/1 | 6/6 · 1/1 |
-| Reasoning words per action | 8.0 · 7.6 | **5.1 · 5.6** |
-| Output tokens per action | 67 · 68 | 64 · 58 |
-| Delight observations on c | 5 | 0 (side effect: the rule frames every observation as a problem) |
-
-Same persona, same flaw:
-- Rule off: *Form returned raw 'Error 422' without explaining what field or format is invalid. Very sloppy engineering.*
-- Rule on: *"Error 422" — raw HTTP status code shown below phone field with no explanation of which input failed or how to fix it.*
-
-### The guardrail: `Payment card number`
-
-Gateway → Guardrails → New protection → **Custom pattern**. Apply to **`persona`**, Action **Redact**:
-
-```
-\b(?:\d[ -]?){12,18}\d\b
-```
-
-**Why:** personas type a payment card at checkout. The code already keeps it from the model: the
-agent types `{card number}` and the browser tool fills in the real value. The guardrail guarantees,
-at the network boundary, that a card number never reaches the model, even if one appears in a prompt,
-a CSV population or page text. It cleans the **request**; it does not filter the model's response.
-
-### Test it from the UI
-
-There are two UIs: the **PolyPersona web app**, where you run tests and read the personas'
-feedback, and **Logfire**, where you see what the Gateway did to each request.
-
-**Before you start:** the web app's agents run in the *deployed* Modal app, which reads `.env` at
-deploy time. After setting `PERSONA_MODEL=gateway/persona:gemini-3.8-flash`, redeploy, or UI tests
-will call Gemini directly and bypass the rule:
-
-```bash
+# 1. Deploy the API and agent containers to Modal
 uv run modal deploy modal_app.py
+
+# 2. Launch the frontend development server
+cd website
+pnpm dev
 ```
 
-#### A. See the rule change the personas' feedback (PolyPersona web app)
+Visit `http://localhost:8443` (or the configured Vite port):
+1. **Sign in** with credentials configured in `POLYPERSONA_USERS`.
+2. **New Test:** Select single site or A/B comparison, configure URLs, define success criteria, select personas, and click **Start test**.
+3. **Live Monitor:** Observe agents live, examine screenshots, inspect reasoning, or send live interventions.
+4. **Results:** View statistical KPI breakdowns, issue aggregations, and query the Evaluator.
+5. **Populations:** Upload customer CSV exports to automatically derive persona panels.
 
-The web app tests real sites only, so use any two URLs. These two are a ready-made pair:
-`https://saas-platform-variant-a.vercel.app/` (pricing first) and `https://saas-platform-variant-b.vercel.app/` (live demo first).
-
-1. **Sign in**, then choose **New test** and **Compare two variants**. Enter the two URLs, a goal such as
-   *"You have a few minutes to check out DataFlow for your team. If it convinces you, sign up. If not, leave."*,
-   success text `Payment successful|Account created`, the 3 built-in personas, 1 repeat. Press **Start test**.
-2. **Live tab:** click any agent and watch its observations appear.
-   - **Rule on:** every observation starts with the exact on-screen text in quotes, then " — ", for example
-     `"Contact Sales" — opens a credit card checkout instead of a sales form.` The agent's reasoning
-     under each action is short.
-   - **Rule off:** the same problems are described in free-form prose.
-3. **Results tab:** the verdict, issues and suggestions are built from those observations. With the rule on,
-   issues name the exact button or message, so you can find each one on the page.
-4. **Compare:** in Logfire, disable the rule (Gateway → Optimizations → UX evidence protocol →
-   disable), start the *same* test again, and compare the two tests' observations. Nothing in the
-   app changes between the two tests; only the Gateway does.
-
-#### B. See the card number stay away from the model (PolyPersona web app)
-
-1. **New test → One website**, URL `https://saas-platform-variant-a.vercel.app/`, goal *"Your manager has
-   approved DataFlow. Buy the Starter plan with the company card and your work email."*, success text
-   `Payment successful`, one persona. Press **Start test**.
-2. Open the agent. In its event log the card field shows `{card number}` and `{card CVC}`, yet the last
-   step reads *the site showed a message: Payment successful! Welcome aboard.* The browser tool fills
-   in the real card, so the model never handles it, and the digits are not stored with the test.
-   The guardrail is the second layer; section D shows it firing.
-
-#### C. See the rule being applied (Logfire)
-
-1. **Gateway → Optimizations → UX evidence protocol:** check targeting shows route `persona`,
-   status **On**. The **Usage** chart shows how many requests the rule ran on and how many it
-   changed. If "changed" stays at zero, the rule isn't bound to the route.
-2. **Live (traces):** search `persona session dev-b-0` and open one trace from a rule-on test and one
-   from a rule-off test. These are the before/after links. Our spans are recorded on our side,
-   *before* the Gateway, so they show the request as the agent sent it, without the injected text.
-   What differs between the two traces is the model's output: the `record_observation` tool calls
-   start with `"<element>" — …` only in the rule-on trace. The Gateway's own proof is the
-   `x-pydantic-gateway-optimizations-applied: UX_evidence_protocol` response header, which
-   `scripts/gateway_check.py` prints, and the rule's Usage chart.
-3. **Gateway → Overview / Spending:** requests and cost accumulate on the `persona` endpoint, which
-   proves the calls go through the Gateway.
-
-#### D. See the guardrail fire (Logfire)
-
-1. **Gateway → Guardrails → Custom → Payment card number:** check the regex, **Apply to: `persona`**,
-   **Action: Redact**. Observe only records a match and doesn't stop anything.
-2. **Pattern tests** on that page: paste each sample. These should **match**: `4242 4242 4242 4242`,
-   `4242424242424242`, `4000-0566-5566-5556`, `378282246310005`. These should **not match**:
-   `(614) 555-0142`, `ZIP 43215`, `CVC 314`, `09/28`, `2026-09-19`, `Order #1234-5678`.
-3. **Make it fire:** run `uv run python scripts/gateway_check.py` (next section). Each card case sends
-   the digits and asks the model to echo them back. In Logfire Live, open those requests: our span
-   shows the prompt *with* the digits, because it is recorded before the Gateway, and the model's
-   answer as `my card is [REDACTED]`. The model can only return the placeholder if the Gateway
-   replaced the digits before they reached it. The guardrail's usage count on its page goes up, and the
-   script prints the `x-pydantic-gateway-guardrails-applied: Payment_card_number=1/1;redact` header.
-
-### Test it from the command line
-
-**1. Route, rule and guardrail in one command:**
+### Mode 3: Deploying Frontend to Cloudflare Pages
 
 ```bash
+cd website
+pnpm build
+npx wrangler pages deploy dist --project-name polypersona --branch main
+```
+
+---
+
+## Testing the Gateway Rule & Guardrail
+
+Verify the Pydantic AI Gateway routing, UX Evidence Protocol, and card redaction:
+
+```bash
+# Automated 7-point check of route, rule, and redaction patterns
 uv run python scripts/gateway_check.py
+
+# Measure flaw recall between rule-off and rule-on runs
+uv run python scripts/flaw_recall.py runs/<rule-off-run> runs/<rule-on-run>
 ```
 
-Expected output: the route is served by provider `gemini`, `optimizations applied: UX_evidence_protocol`, and `7/7`:
+---
 
-| Case | Sent | Model should see | Guardrail header |
-|---|---|---|---|
-| card, spaced | `my card is 4242 4242 4242 4242` | `my card is [REDACTED]` | `Payment_card_number=1/1;redact` |
-| card, no spaces | `card 4242424242424242` | `card [REDACTED]` | redact |
-| card, dashes | `use 4000-0566-5566-5556 please` | `use [REDACTED] please` | redact |
-| card, 15-digit Amex | `amex 378282246310005` | `amex [REDACTED]` | redact |
-| near miss | `call me on (614) 555-0142, ZIP 43215` | unchanged | none |
-| near miss | `expiry 09/28, CVC 314` | unchanged | none |
-| near miss | `ordered 2026-09-19, order #1234-5678` | unchanged | none |
+## Bypass Rules for Bot Protection / Cloudflare WAF
 
-Each case asks the model to echo the text back character for character. If redaction works, the model
-returns the placeholder, which proves it never received the digits.
+Automated browsers can be challenged by WAFs (Cloudflare Turnstile, Bot Fight Mode). PolyPersona does not attempt evasion; instead, configure allow-listed access:
 
-**2. The rule's before/after on real sessions** (about 3 minutes per run, 6 Modal containers):
+1. In **New test &rarr; Advanced**, specify a secret access header: e.g. `x-polypersona-key: <your-secret>`.
+2. In your Cloudflare Dashboard under **Security &rarr; WAF &rarr; Custom rules**, add an exemption:
+   ```
+   http.request.headers["x-polypersona-key"][0] eq "<your-secret>"
+   Action: Skip (Managed Challenge, Bot Fight Mode, Rate Limiting)
+   ```
+Headers are transmitted strictly to the target host and its subdomains, and secrets are never persisted in public run logs.
 
-```bash
-# Gateway → Optimizations → UX evidence protocol → disable, then:
-uv run python -m polypersona run --modal --variants b,c --personas 3
-# enable it again, then:
-uv run python -m polypersona run --modal --variants b,c --personas 3
-uv run python scripts/flaw_recall.py runs/<rule-off run> runs/<rule-on run>
-```
+---
 
-`scripts/flaw_recall.py` computes the table above in code. It checks every quote against the site's
-real text, so invented quotes are caught.
-
-**3. Checkout still works with the guardrail on:**
-
-```bash
-uv run python -m polypersona run --modal --variants a --personas 1
-```
-
-Expected: `completed`. In `runs/<id>/sessions/*/report.json`, the typed values show `{card number}`
-and `{card CVC}`, never the digits.
-
-**4. In Logfire:** search `persona session dev-b-0` and open one trace per run. Our spans are recorded
-before the Gateway, so compare the model's *outputs* (the observation format), not the prompts.
-
-## Sites behind Cloudflare or other bot protection
-
-The agents are automated browsers, so bot protection will challenge them, and PolyPersona does not try to
-evade it. Let them in on purpose instead:
-
-1. In **New test → Advanced**, set an access header, for example `x-polypersona-key` with a secret value you choose.
-2. On your site, add a rule that skips the challenge when that header matches. In Cloudflare:
-   **Security → WAF → Custom rules**, expression `http.request.headers["x-polypersona-key"][0] eq "<your secret>"`,
-   action **Skip** (managed challenge, Bot Fight Mode, rate limiting as needed).
-3. For a Turnstile widget inside a form, use Cloudflare's test site key on staging.
-
-The header is sent only to the site under test and its subdomains, never to third parties, and its value
-is never stored with the test.
-
-## Repository map
+## Repository Map
 
 ```
-modal_app.py            Modal app: agent sessions, cloud orchestrator, HTTP API
-polypersona/            Python package (agent, browser, evaluator, orchestration, API, CLI)
-site/                   Demo coffee shop with variants a, b and c
-ui/                     React + Vite + Tailwind front end, deployed to Cloudflare Pages
-scripts/                Gateway checks and rule before/after measurement
-tests/                  Offline tests
-docs/ARCHITECTURE.md    How it all fits together
+polypersona/
+├── logo.svg                   # Vector SVG logo reproduced 1:1 from brand assets
+├── modal_app.py               # Modal entrypoint: containerized sessions, cloud orchestrator, FastAPI
+├── pyproject.toml             # Python dependencies, pytest settings, project metadata
+├── polypersona/               # Core Python package
+│   ├── browser.py             # Playwright browser manager, coordinate grid, DOM fingerprinting
+│   ├── cloud.py               # FastAPI cloud endpoints, session authentication, Modal execution
+│   ├── evaluator.py           # Pydantic AI evaluator agent, evidence-backed verdict synthesizer
+│   ├── live.py                # LiveBoard state management (FsBackend & DictBackend)
+│   ├── llm.py                 # Model factory, Pydantic AI Gateway & thought-signature transport
+│   ├── metrics.py             # Deterministic metric calculator (dead clicks, backtracks, ease/trust)
+│   ├── models.py              # Pydantic models (Persona, TestTask, StepRecord, EvaluatorReport)
+│   ├── orchestrator.py        # Matrix planner (personas × variants × repeats) and execution loops
+│   ├── persona_agent.py       # Pydantic AI PersonaAgent loop, action budget, screenshot history
+│   ├── personas.py            # Built-in personas (Margaret, Dev, Sofia) and dynamic audience prompt
+│   ├── population.py          # CRM CSV parser & deterministic/generative persona generator
+│   ├── session.py             # Local and containerized session execution lifecycle
+│   └── store.py               # Local run persistence and HTML report renderer
+├── website/                   # React 19 + Vite frontend
+│   ├── src/
+│   │   ├── components/Layout.tsx # Navigation bar, glassmorphism layout, and theme toggling
+│   │   ├── context/ThemeContext.tsx # Light/dark theme state management
+│   │   ├── pages/             # Route views (Workspace, TestMonitor, Personas, Insights, Tools)
+│   │   └── routes.tsx         # React Router route definitions
+│   └── vite.config.ts         # Vite build and Tailwind CSS v4 configuration
+├── site/                      # Bundled multi-variant demo coffee shop (a: clean, b: dark patterns, c: redesign)
+├── scripts/                   # Gateway check and flaw recall evaluation scripts
+├── tests/                     # Pytest suite with offline mocks and demo shop validation
+└── docs/
+    └── ARCHITECTURE.md        # Comprehensive technical architecture and data flow document
 ```
 
-## Troubleshooting
+---
 
-- **401 when starting a test:** sign in again. Sessions last 7 days and are invalidated if `POLYPERSONA_TOKEN` changes.
-- **New account or key not working:** run `uv run modal deploy modal_app.py` again, then wait about 20 seconds for old containers to drain.
-- **429 from Gemini:** calls back off and retry automatically. Lower `--repeats` or the number of personas if it persists.
-- **Agents cannot reach your site:** Modal containers need a public URL. `localhost` only works with Option A without `--modal`.
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
