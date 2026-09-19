@@ -1,8 +1,12 @@
-import { NavLink, Outlet, useLocation } from 'react-router';
+import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
+import { getUser, isSignedIn, signOut } from '../lib/api';
 
 export default function Layout() {
   const location = useLocation();
   const isLanding = location.pathname === '/';
+  const isPublic = isLanding || location.pathname === '/login';
+  // The app is for invited accounts: everything past the landing page needs a sign-in.
+  if (!isPublic && !isSignedIn()) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search + location.hash)}`} replace />;
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#09090e' }}>
       <Nav isLanding={isLanding} />
@@ -29,15 +33,24 @@ function Nav({ isLanding }: { isLanding: boolean }) {
         <NavItem to="/insights" label="Insights" />
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {isLanding ? (
-          <NavLink to="/workspace" style={{ textDecoration: 'none' }}>
+        {isSignedIn() ? <UserMenu /> : (
+          <NavLink to="/login" style={{ textDecoration: 'none' }}>
             <button className="btn-primary" style={{ fontSize: 12, padding: '5px 14px' }}>Sign in</button>
           </NavLink>
-        ) : (
-          <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#4ade80', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#09090e', cursor: 'pointer' }}>A</div>
         )}
       </div>
     </nav>
+  );
+}
+
+function UserMenu() {
+  const navigate = useNavigate();
+  const user = getUser() || 'owner';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+      <div title={`Signed in as ${user}`} style={{ width: 28, height: 28, borderRadius: '50%', background: '#4ade80', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#09090e' }}>{user[0].toUpperCase()}</div>
+      <button className="btn-ghost" style={{ fontSize: 12, padding: '4px 8px' }} onClick={() => { signOut(); navigate('/'); }}>Sign out</button>
+    </div>
   );
 }
 

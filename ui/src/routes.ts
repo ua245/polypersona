@@ -9,12 +9,14 @@ import Tools from './pages/Tools';
 import Insights from './pages/Insights';
 import CustomerData from './pages/CustomerData';
 import PopulationsCustom from './pages/PopulationsCustom';
+import Login from './pages/Login';
 
 export const router = createBrowserRouter([
   {
     Component: Layout,
     children: [
       { index: true, Component: Landing },
+      { path: 'login', Component: Login },
       { path: 'workspace', Component: Workspace },
       { path: 'populations', Component: Populations },
       { path: 'populations/new', Component: PopulationNew },
