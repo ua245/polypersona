@@ -1,6 +1,8 @@
-// Demo shop with two variants. "a" is the clean flow, "b" carries deliberate UX flaws and one bug.
+// Demo shop. "a" is the clean flow, "b" carries deliberate UX flaws and one bug, and "c" is a plausible
+// redesign of "a": faster (buy now, inline errors, collects an email) but with a pre-ticked subscription.
 const V = window.VARIANT;
 const B = V === "b";
+const C = V === "c";
 document.body.className = V;
 
 const PRODUCTS = [
@@ -12,7 +14,7 @@ const PRODUCTS = [
 const SHIPPING = 4.5;
 const HANDLING = B ? 3.45 : 0;
 
-const state = { cart: {}, account: false, ship: {}, modalSeen: false, notice: "" };
+const state = { cart: {}, account: false, ship: {}, modalSeen: false, notice: "", subscribed: false };
 const money = (n) => "$" + n.toFixed(2);
 const count = () => Object.values(state.cart).reduce((a, b) => a + b, 0);
 const subtotal = () => Object.entries(state.cart).reduce((s, [id, q]) => s + PRODUCTS.find((p) => p.id === id).price * q, 0);
@@ -30,7 +32,7 @@ function home() {
       <div class="swatch" style="background:${p.color}"></div>
       <strong>${p.name}</strong><span class="muted">${p.notes} · 250g</span>
       <div class="row between"><span class="price">${money(p.price)}</span>
-      <button data-add="${p.id}" class="${B ? "secondary" : ""}">${B ? "Select" : "Add to cart"}</button></div>
+      <span class="row">${C ? `<button data-add="${p.id}" class="secondary">Add</button><button data-buy="${p.id}">Buy now</button>` : `<button data-add="${p.id}" class="${B ? "secondary" : ""}">${B ? "Select" : "Add to cart"}</button>`}</span></div>
     </div>`).join("");
   const notice = state.notice && !B ? `<div class="notice">${state.notice} <a href="#/cart">View cart</a></div>` : "";
   return `<h1>Fresh roasted, shipped weekly</h1>${notice}<div class="grid">${cards}</div>`;
@@ -77,7 +79,9 @@ function paymentForm() {
 
 function checkoutA() {
   const total = subtotal() + SHIPPING;
-  return `${shippingForm()}<h2>Payment</h2>${paymentForm()}
+  const email = C ? `<label for="email">Email for your receipt</label><input id="email" type="email" value="${state.ship.email || ""}">` : "";
+  const sub = C ? `<label class="check"><input type="checkbox" id="sub" checked> Subscribe &amp; save: send this order every 4 weeks</label>` : "";
+  return `${shippingForm()}${email}<h2>Payment</h2>${paymentForm()}${sub}
     <div class="summary"><div><span>Subtotal</span><span>${money(subtotal())}</span></div><div><span>Shipping</span><span>${money(SHIPPING)}</span></div>
     <div class="total"><span>Total</span><span>${money(total)}</span></div></div>
     <div class="err" id="err"></div><button data-act="place">Place order · ${money(total)}</button>`;
@@ -95,7 +99,8 @@ function reviewB() {
     <div class="row"><button class="loud" data-act="clear">Cancel order</button><button class="weak" data-act="confirm">Submit</button></div>`;
 }
 function confirmed() {
-  return `<h1>Order confirmed</h1><p>Thanks${state.ship.name ? ", " + state.ship.name.split(" ")[0] : ""}! Order #KC-${1000 + Math.floor(Math.random() * 9000)} is on its way. A receipt has been emailed to you.</p>`;
+  const sub = state.subscribed ? "<p>Your subscription is active. We will send this order every 4 weeks.</p>" : "";
+  return `<h1>Order confirmed</h1><p>Thanks${state.ship.name ? ", " + state.ship.name.split(" ")[0] : ""}! Order #KC-${1000 + Math.floor(Math.random() * 9000)} is on its way. A receipt has been emailed to you.</p>${sub}`;
 }
 function modal() {
   return `<div class="overlay"><div class="modal"><h2>Get 10% off your first bag</h2><p class="muted">Join 40,000 coffee lovers.</p>
@@ -117,7 +122,7 @@ function render() {
 }
 
 function fail(msg) { document.getElementById("err").textContent = msg; }
-function readShip() { for (const k of ["name", "street", "city", "zip", "phone"]) if (document.getElementById(k)) state.ship[k] = val(k).trim(); }
+function readShip() { for (const k of ["name", "street", "city", "zip", "phone", "email"]) if (document.getElementById(k)) state.ship[k] = val(k).trim(); }
 function shipOk() { return state.ship.name && state.ship.street && state.ship.city && /^\d{5}$/.test(state.ship.zip); }
 function cardOk() { return val("card").replace(/\s/g, "").length === 16 && /^\d{2}\/\d{2}$/.test(val("exp").trim()) && /^\d{3,4}$/.test(val("cvc").trim()); }
 
@@ -130,6 +135,8 @@ document.addEventListener("click", (e) => {
     render();
     return;
   }
+  const buy = e.target.closest("[data-buy]");
+  if (buy) { state.cart = { [buy.dataset.buy]: 1 }; go("#/checkout"); return; }
   const act = (e.target.closest("[data-act]") || { dataset: {} }).dataset.act;
   if (!act) return;
   if (act === "modal") { state.modalSeen = true; render(); }
@@ -152,7 +159,9 @@ document.addEventListener("click", (e) => {
   if (act === "place") {
     readShip();
     if (!shipOk()) return fail("Please fill in your name, street, city and a 5-digit ZIP code.");
+    if (C && !/.+@.+\..+/.test(val("email"))) return fail("Enter an email address so we can send your receipt.");
     if (!cardOk()) return fail("Check your card: 16-digit number, expiry as MM/YY, and a 3-digit CVC.");
+    if (C) { state.subscribed = document.getElementById("sub").checked; state.cart = {}; }
     go("#/confirmed");
   }
 });

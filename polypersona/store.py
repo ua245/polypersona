@@ -8,7 +8,7 @@ from .evaluator import EvalDeps
 from .models import EvaluatorReport, SessionReport, VariantMetrics
 
 
-def save_run(run_dir: Path, results: list[tuple[SessionReport, list[bytes], bytes | None]], metrics: list[VariantMetrics], verdict: EvaluatorReport | None) -> Path:
+def save_run(run_dir: Path, results: list[tuple[SessionReport, list[bytes], bytes | None]], metrics: list[VariantMetrics], verdict: EvaluatorReport | None, eval_usage=None) -> Path:
     for report, shots, video in results:
         d = run_dir / "sessions" / report.session_id
         d.mkdir(parents=True, exist_ok=True)
@@ -21,7 +21,9 @@ def save_run(run_dir: Path, results: list[tuple[SessionReport, list[bytes], byte
     if verdict:
         (run_dir / "verdict.json").write_text(verdict.model_dump_json(indent=1))
     out = run_dir / "report.html"
-    out.write_text(render_html([r for r, _, _ in results], metrics, verdict, {r.session_id for r, _, v in results if v}))
+    tokens = {"evaluator_input": eval_usage.input_tokens, "evaluator_output": eval_usage.output_tokens} if eval_usage else {}
+    (run_dir / "usage.json").write_text(json.dumps(tokens))
+    out.write_text(render_html([r for r, _, _ in results], metrics, verdict, {r.session_id for r, _, v in results if v}, tokens))
     return out
 
 
@@ -54,17 +56,20 @@ details summary{cursor:pointer}.rec{display:block;width:100%;max-width:760px;mar
 """
 
 
-def render_html(reports: list[SessionReport], metrics: list[VariantMetrics], verdict: EvaluatorReport | None, videos: set[str] = frozenset()) -> str:
+def render_html(reports: list[SessionReport], metrics: list[VariantMetrics], verdict: EvaluatorReport | None, videos: set[str] = frozenset(), tokens: dict | None = None) -> str:
     e = html.escape
     parts = [f"<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Polypersona run</title><style>{CSS}</style><div class=wrap>"]
-    parts.append(f"<h1>Polypersona run</h1><p class=mut>{len(reports)} sessions · {len({r.persona.id for r in reports})} personas · variants {', '.join(m.variant_id for m in metrics)}</p>")
+    tokens = tokens or {}
+    total = sum(r.input_tokens + r.output_tokens for r in reports) + sum(tokens.values())
+    check = reports[0].completion_check if reports else ""
+    parts.append(f"<h1>Polypersona run</h1><p class=mut>{len(reports)} sessions · {len({r.persona.id for r in reports})} personas · variants {', '.join(m.variant_id for m in metrics)} · {total:,} tokens (evaluator {sum(tokens.values()):,})</p><p class=mut>Completion {e(check)}.</p>")
     if verdict:
         parts.append(f"<div class='card win'><span class=tag>verdict</span><span class=tag>confidence: {verdict.confidence}</span><h3 style='margin-top:8px'>Winner: {e(verdict.winner)}</h3><p>{e(verdict.rationale)}</p>")
         parts.append("<b>Caveats</b><ul>" + "".join(f"<li>{e(c)}</li>" for c in verdict.caveats) + "</ul></div>")
-    parts.append("<h2>Metrics (computed in code)</h2><div class='card tw'><table><tr><th>Variant<th>Sessions<th>Completion<th>Mean actions<th>Mean time<th>Dead clicks<th>Backtracks<th>Ease /5<th>Trust /5<th>Neg. severity<th>Observations</tr>")
+    parts.append("<h2>Metrics (computed in code)</h2><div class='card tw'><table><tr><th>Variant<th>Sessions<th>Completion<th>Mean actions<th>Mean time<th>Dead clicks<th>Backtracks<th>Ease /5<th>Trust /5<th>Neg. severity<th>Errors<th>Tokens<th>Observations</tr>")
     for m in metrics:
         kinds = ", ".join(f"{k} {v}" for k, v in m.observations_by_kind.items())
-        parts.append(f"<tr><td><b>{e(m.variant_id)}</b><td>{m.sessions}<td>{m.completion_rate:.0%}<td>{m.mean_steps}<td>{m.mean_duration_s}s<td>{m.dead_clicks}<td>{m.backtracks}<td>{m.mean_ease}<td>{m.mean_trust}<td>{m.mean_negative_severity}<td>{e(kinds)}</tr>")
+        parts.append(f"<tr><td><b>{e(m.variant_id)}</b><td>{m.sessions}<td>{m.completion_rate:.0%}<td>{m.mean_steps}<td>{m.mean_duration_s}s<td>{m.dead_clicks}<td>{m.backtracks}<td>{m.mean_ease}<td>{m.mean_trust}<td>{m.mean_negative_severity}<td>{m.errors}<td>{m.input_tokens + m.output_tokens:,}<td>{e(kinds)}</tr>")
     parts.append("</table></div>")
     if verdict:
         parts.append("<h2>Issues</h2>")
@@ -74,7 +79,7 @@ def render_html(reports: list[SessionReport], metrics: list[VariantMetrics], ver
     parts.append("<h2>Sessions</h2>")
     for r in reports:
         p = r.persona
-        parts.append(f"<details class=card {'open' if len(reports) <= 2 else ''}><summary><b>{e(p.name)}</b> on variant <b>{e(r.variant_id)}</b> <span class='tag {r.outcome}'>{r.outcome}</span><span class=mut>{len(r.steps) - 1} actions · {r.duration_s}s · {p.device} · {p.tech_savviness} savviness · <code>{e(r.session_id)}</code></span></summary>")
+        parts.append(f"<details class=card {'open' if len(reports) <= 2 else ''}><summary><b>{e(p.name)}</b> on variant <b>{e(r.variant_id)}</b> <span class='tag {r.outcome}'>{r.outcome}</span><span class=mut>{len(r.steps) - 1} actions · {r.duration_s}s · {p.device} · {p.tech_savviness} savviness · {r.input_tokens + r.output_tokens:,} tokens · <code>{e(r.session_id)}</code></span></summary>")
         if r.exit_survey:
             s = r.exit_survey
             parts.append(f"<p>“{e(s.summary)}”</p><p class=mut>Ease {s.ease}/5 · Trust {s.trust}/5 · Would return: {'yes' if s.would_return else 'no'}{' · Biggest problem: ' + e(s.biggest_problem) if s.biggest_problem else ''}</p>")
@@ -89,7 +94,7 @@ def render_html(reports: list[SessionReport], metrics: list[VariantMetrics], ver
             dot = f"<span class=dot style='left:{nxt.args['x'] / 10}%;top:{nxt.args['y'] / 10}%'></span>" if nxt and "x" in nxt.args else ""
             obs = "".join(f"<div class=obs><span class='tag {o.kind}'>{o.kind} {o.severity}</span>{e(o.text)}</div>" for o in r.observations if o.step_idx == s.idx)
             label = e(s.action + (" “" + s.args["text"] + "”" if "text" in s.args else ""))
-            parts.append(f"<div class=frame><div class=shot><img loading=lazy src='sessions/{e(r.session_id)}/{s.idx}.jpg'>{dot}</div><p><b>#{s.idx} {label}</b>{'' if s.changed else ' <span class=mut>(no change)</span>'}</p><p class=mut>{e(s.reasoning)}</p>{obs}</div>")
+            parts.append(f"<div class=frame><div class=shot><img loading=lazy src='sessions/{e(r.session_id)}/{s.idx}.jpg'>{dot}</div><p><b>#{s.idx} {label}</b>{'' if s.changed else ' <span class=mut>(no change)</span>'}</p><p class=mut>{e(s.note)}</p><p class=mut>{e(s.reasoning)}</p>{obs}</div>")
         parts.append("</div></details>")
     parts.append("</div>")
     return "".join(parts)

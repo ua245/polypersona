@@ -25,7 +25,21 @@ class TestTask(BaseModel):
     url: str = Field(description="Start URL. 'demo://a' and 'demo://b' serve the bundled demo shop.")
     goal: str
     fixtures: dict[str, str] = Field(default_factory=dict, description="Data the persona may type, e.g. address, card.")
+    # Completion is verified in code. Every check that is set must pass; with none set, the persona's own claim is used.
     success_url_contains: str | None = None
+    success_text_contains: str | None = Field(default=None, description="Text that must be visible on the final page.")
+    success_selector: str | None = Field(default=None, description="CSS selector that must exist on the final page.")
+
+    @property
+    def completion_check(self) -> str:
+        checks = []
+        if self.success_url_contains:
+            checks.append(f"final URL contains '{self.success_url_contains}'")
+        if self.success_text_contains:
+            checks.append(f"final page shows the text '{self.success_text_contains}'")
+        if self.success_selector:
+            checks.append(f"final page has an element matching '{self.success_selector}'")
+        return "verified in code: " + " and ".join(checks) if checks else "self-reported by the persona (no check configured)"
 
 
 class StepRecord(BaseModel):
@@ -35,6 +49,7 @@ class StepRecord(BaseModel):
     reasoning: str = ""
     url: str = ""
     changed: bool = True
+    note: str = Field(default="", description="What the action landed on, e.g. 'clicked button: Continue'.")
     ts: float = 0.0
 
 
@@ -65,6 +80,10 @@ class SessionReport(BaseModel):
     observations: list[Observation] = Field(default_factory=list)
     exit_survey: ExitSurvey | None = None
     duration_s: float = 0.0
+    completion_check: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    model_requests: int = 0
     error: str | None = None
 
 
@@ -80,6 +99,9 @@ class VariantMetrics(BaseModel):
     mean_trust: float | None
     observations_by_kind: dict[str, int]
     mean_negative_severity: float | None
+    errors: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 class Issue(BaseModel):
@@ -93,7 +115,7 @@ class Issue(BaseModel):
 
 
 class EvaluatorReport(BaseModel):
-    winner: str = Field(description="The variant_id that works best, or 'tie'.")
+    winner: str = Field(description="The variant_id that works best, or 'no clear winner' when the evidence is mixed or too thin.")
     confidence: Literal["low", "medium", "high"]
     rationale: str
     issues: list[Issue]

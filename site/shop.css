@@ -19,6 +19,8 @@ button.secondary, .btn.secondary { background: #fff; color: #2a1f17; }
 .b button.loud { background: #c8321e; border-color: #c8321e; color: #fff; font-weight: bold; }
 .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 .between { justify-content: space-between; }
+label.check { display: flex; gap: 8px; align-items: center; font-weight: normal; margin: 16px 0 0; }
+label.check input { width: auto; }
 label { display: block; font-size: 14px; margin: 14px 0 4px; font-weight: bold; }
 input, select { font: inherit; font-size: 15px; width: 100%; padding: 10px; border: 1px solid #b9ab98; border-radius: 4px; background: #fff; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

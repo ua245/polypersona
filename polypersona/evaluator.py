@@ -5,10 +5,12 @@ import os
 from dataclasses import dataclass
 
 from pydantic_ai import Agent, BinaryContent, RunContext, ToolReturn
+from pydantic_ai.usage import RunUsage
 
 from .models import EvaluatorReport, SessionReport, VariantMetrics
+from .persona_agent import make_model
 
-EVALUATOR_MODEL = os.environ.get("EVALUATOR_MODEL", "google:gemini-pro-latest")
+EVALUATOR_MODEL = os.environ.get("EVALUATOR_MODEL", "gemini-pro-latest")
 
 
 @dataclass
@@ -23,6 +25,9 @@ Synthetic users, each playing a persona, attempted the same task on each variant
 
 Rules:
 - The metrics are ground truth. Never restate a number differently from how it is given.
+- Each session states how "completed" was decided (completion_check). Trust a check verified in code; treat a self-reported one with caution and say so.
+- Each step's note names what the click landed on. Use it to tell a mis-click from a control that did nothing.
+- If the evidence is mixed, the variants trade strengths, or the sample is too thin to separate them, answer "no clear winner" rather than forcing a pick.
 - Ground every claim in evidence. Reference it as '<session_id>#<step_idx>'. Use get_screenshot to look at a screen before you rely on a contested or severe observation.
 - Merge duplicate observations from different personas into one issue and list everyone affected.
 - Separate real defects from persona taste. Say which persona segments each variant serves badly.
@@ -39,9 +44,10 @@ def _context(deps: EvalDeps) -> str:
                 "variant": r.variant_id,
                 "persona": r.persona.model_dump(include={"name", "bio", "tech_savviness", "device", "patience_steps"}),
                 "outcome": r.outcome,
+                "completion_check": r.completion_check,
                 "actions": len(r.steps) - 1,
                 "duration_s": r.duration_s,
-                "path": [f"{s.idx}: {s.action} {json.dumps(s.args)}{'' if s.changed else ' (no change)'} — {s.reasoning}" for s in r.steps],
+                "path": [f"{s.idx}: {s.action} {json.dumps(s.args)}{' [' + s.note + ']' if s.note else ''}{'' if s.changed else ' (no change)'} — {s.reasoning}" for s in r.steps],
                 "observations": [o.model_dump() for o in r.observations],
                 "exit_survey": r.exit_survey.model_dump() if r.exit_survey else None,
                 "error": r.error,
@@ -51,7 +57,7 @@ def _context(deps: EvalDeps) -> str:
 
 
 def _build(output_type) -> Agent[EvalDeps]:
-    agent = Agent(EVALUATOR_MODEL, deps_type=EvalDeps, output_type=output_type, instructions=INSTRUCTIONS, retries=3)
+    agent = Agent(make_model(EVALUATOR_MODEL), deps_type=EvalDeps, output_type=output_type, instructions=INSTRUCTIONS, retries=3)
 
     @agent.tool
     def get_screenshot(ctx: RunContext[EvalDeps], session_id: str, step_idx: int) -> ToolReturn | str:
@@ -67,9 +73,10 @@ def _build(output_type) -> Agent[EvalDeps]:
     return agent
 
 
-async def evaluate(deps: EvalDeps) -> EvaluatorReport:
-    result = await _build(EvaluatorReport).run(f"Judge this test.\n\n{_context(deps)}", deps=deps)
-    return result.output
+async def evaluate(deps: EvalDeps) -> tuple[EvaluatorReport, RunUsage]:
+    usage = RunUsage()
+    result = await _build(EvaluatorReport).run(f"Judge this test.\n\n{_context(deps)}", deps=deps, usage=usage)
+    return result.output, usage
 
 
 async def ask(deps: EvalDeps, question: str, verdict: EvaluatorReport | None = None) -> str:

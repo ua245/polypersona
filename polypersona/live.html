@@ -1,0 +1,94 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Polypersona live</title>
+<style>
+  :root{--bg:#eef1ef;--card:#f9fbfa;--ink:#14201c;--mut:#55645f;--line:#c9d2ce;--acc:#0b6e5b;--bad:#a8281f;--warn:#9a5a0b}
+  @media(prefers-color-scheme:dark){:root{--bg:#0e1513;--card:#161f1c;--ink:#e3ebe8;--mut:#94a59f;--line:#2c3a35;--acc:#57c9ae;--bad:#f2867e;--warn:#e2a455}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,sans-serif;padding:24px 20px 60px}
+  .wrap{max-width:1280px;margin:0 auto}
+  h1{font-size:24px;margin:0}h2{font-size:16px;margin:28px 0 10px}
+  .top{display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;justify-content:space-between}
+  .mut{color:var(--mut)}.mono{font-family:ui-monospace,Menlo,monospace;font-size:12px}
+  .pill{display:inline-block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:1px 8px;border-radius:99px;border:1px solid currentColor;color:var(--mut)}
+  .pill.running{color:var(--warn)}.pill.completed,.pill.finished{color:var(--acc)}.pill.gave_up,.pill.out_of_steps,.pill.error,.pill.failed{color:var(--bad)}
+  .pulse{animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{opacity:.35}}
+  @media(prefers-reduced-motion:reduce){.pulse{animation:none}}
+  .verdict{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:8px;padding:16px;margin-top:16px}
+  .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+  .head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+  .shot{border:1px solid var(--line);border-radius:4px;overflow:hidden;background:#000;line-height:0;text-align:center}
+  .shot img{max-width:100%;max-height:420px}
+  .bar{height:4px;border-radius:2px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}
+  .bar.low i{background:var(--bad)}
+  .log{display:flex;flex-direction:column;gap:4px;max-height:150px;overflow-y:auto;font-size:12.5px}
+  .log div{padding-left:8px;border-left:2px solid var(--line)}.log .dead{border-color:var(--bad)}
+  .obs{font-size:12.5px;padding-left:8px;border-left:2px solid var(--warn)}
+  .obs.bug{border-color:var(--bad)}.obs.delight{border-color:var(--acc)}
+  blockquote{margin:0;font-style:italic}
+  a{color:var(--acc)}
+</style>
+<div class="wrap">
+  <div class="top">
+    <div><h1>Polypersona live</h1><span class="mut" id="sub"></span></div>
+    <div><span class="pill" id="status">connecting</span> <span id="links"></span></div>
+  </div>
+  <div id="verdict"></div>
+  <div id="rows"></div>
+</div>
+<script>
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const label = (st) => st.action + (st.args && st.args.text ? ` “${st.args.text}”` : "") + (st.note ? ` — ${st.note}` : "");
+
+  function card(s) {
+    const last = s.steps[s.steps.length - 1];
+    const state = s.outcome || s.status;
+    const pct = Math.max(0, Math.round((s.actions_left / s.patience) * 100));
+    const img = last ? `<img alt="Latest screen for ${esc(s.persona)} on variant ${esc(s.variant)}" src="sessions/${esc(s.session_id)}/${last.idx}.jpg">` : "";
+    const log = s.steps.slice(-6).reverse().map((st) =>
+      `<div class="${st.changed ? "" : "dead"}"><b>#${st.idx} ${esc(label(st))}</b>${st.changed ? "" : " · no change"}<br><span class="mut">${esc(st.reasoning)}</span></div>`).join("");
+    const obs = s.observations.slice(-3).reverse().map((o) =>
+      `<div class="obs ${esc(o.kind)}"><b>${esc(o.kind)} ${o.severity}</b> · step ${o.step_idx} · ${esc(o.text)}</div>`).join("");
+    const survey = s.exit_survey ? `<blockquote>“${esc(s.exit_survey.summary)}”</blockquote><span class="mut">Ease ${s.exit_survey.ease}/5 · Trust ${s.exit_survey.trust}/5</span>` : "";
+    return `<div class="card">
+      <div class="head"><b>Variant ${esc(s.variant)}</b><span class="pill ${esc(state)} ${s.status === "running" ? "pulse" : ""}">${esc(state)}</span></div>
+      <div class="shot">${img}</div>
+      <div class="bar ${pct < 25 ? "low" : ""}" title="patience left"><i style="width:${pct}%"></i></div>
+      <span class="mut mono">${s.steps.length ? s.steps.length - 1 : 0} actions · ${s.actions_left} of ${s.patience} patience left · ${esc(s.session_id)}</span>
+      ${survey}${s.error ? `<span class="mono" style="color:var(--bad)">${esc(s.error.split("\n")[0])}</span>` : ""}
+      ${obs}<div class="log">${log}</div></div>`;
+  }
+
+  function render(state) {
+    const sessions = Object.values(state.sessions);
+    document.getElementById("sub").textContent = `${sessions.length} sessions · running ${state.where}`;
+    const st = document.getElementById("status");
+    st.textContent = state.status;
+    st.className = `pill ${state.status} ${state.status === "running" || state.status === "evaluating" ? "pulse" : ""}`;
+    document.getElementById("links").innerHTML = state.report ? `<a href="${esc(state.report)}">Open full report with recordings</a>` : "";
+    const v = state.verdict;
+    document.getElementById("verdict").innerHTML = v
+      ? `<div class="verdict"><span class="pill">verdict · confidence ${esc(v.confidence)}</span><h2 style="margin:8px 0 4px">Winner: ${esc(v.winner)}</h2><p style="margin:0">${esc(v.rationale)}</p></div>` : "";
+    const groups = {};
+    for (const s of sessions) (groups[`${s.persona_id}|${s.session_id.split("-").pop()}`] ||= []).push(s);
+    document.getElementById("rows").innerHTML = Object.values(groups).map((g) => {
+      const p = g[0];
+      return `<h2>${esc(p.persona)} <span class="mut" style="font-weight:400">· ${esc(p.device)} · ${esc(p.savviness)} savviness · run ${esc(p.session_id.split("-").pop())}</span></h2>
+        <div class="row">${g.sort((a, b) => a.variant.localeCompare(b.variant)).map(card).join("")}</div>`;
+    }).join("");
+  }
+
+  async function tick() {
+    try {
+      const state = await (await fetch("live.json", { cache: "no-store" })).json();
+      render(state);
+      if (state.status === "finished" || state.status === "failed") return;
+    } catch (e) {
+      document.getElementById("status").textContent = "disconnected";
+    }
+    setTimeout(tick, 1000);
+  }
+  tick();
+</script>
