@@ -94,3 +94,30 @@ laptop: metrics.py (pure code) ─► Evaluator agent ─► report.html
 - Clicks use a 0–1000 grid over the screenshot, so accuracy depends on the model.
 - Simulated users tolerate friction differently from real ones. Use this to find problems early, not to replace user research.
 - The live view binds to localhost and has no authentication.
+
+## Pydantic AI Gateway, Modal endpoint and Logfire
+
+Persona agents can run on an open-weight model served by a Modal endpoint and reached only
+through the Pydantic AI Gateway. The Gateway holds the Modal credentials (BYOK), applies
+optimization rules and guardrails, and every call is traced in Logfire.
+
+```
+persona agent ──► Pydantic AI Gateway (route "modal": rules, guardrails) ──► Modal endpoint (vLLM, gemma-4-31B-it)
+       └── Logfire traces (agent runs, model calls, tool calls)
+```
+
+1. `uv run modal workspace proxy-tokens create`, then `modal endpoint create --name gateway --model google/gemma-4-31B-it`.
+2. In Logfire → Gateway, add a provider named `modal` with base URL `<endpoint-url>/v1` and the proxy token.
+3. In `.env`, set `PYDANTIC_AI_GATEWAY_BASE_URL`, `PYDANTIC_AI_GATEWAY_API_KEY`, `LOGFIRE_TOKEN` and
+   `PERSONA_MODEL=gateway/modal:google/gemma-4-31B-it`. Any `gateway/<route>:<model>` string works (`polypersona/llm.py`).
+4. Run the same command twice, rule disabled and enabled, and compare:
+
+```bash
+uv run python -m polypersona run --modal --variants b,c --personas 3
+uv run python scripts/flaw_recall.py runs/<before> runs/<after>
+```
+
+`scripts/flaw_recall.py` counts, in code, how many of the demo shop's planted flaws the personas
+reported. It also prints the quote behind each match. Card numbers never reach the model: personas
+type `{card number}` and the tool layer fills in the real value, so a Gateway guardrail can redact
+them without breaking checkout.
