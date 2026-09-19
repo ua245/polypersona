@@ -3,6 +3,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { sessionList, type RunState, type SessionState } from '../../lib/api';
 import { SENTIMENT_HELP, agentState, avatarColor, initials, pct, runCounts, sentimentOf, sentimentTone, variantName, type AgentState, isSingleSite } from '../../lib/derive';
 import { C, Empty, Tag } from '../../lib/ui';
+import Crowd from '../../components/Crowd';
 import AgentCard from './live/AgentCard';
 import JourneyMatrix from './live/JourneyMatrix';
 import PanelActivity from './live/PanelActivity';
@@ -121,6 +122,11 @@ export default function LiveTab({ run, onOpenResults }: { run: RunState; onOpenR
           Every agent has finished. The evaluator is reading their sessions…
         </div>
       ) : null}
+
+      {sessions.some((s) => s.steps.length > 0) && (
+        <Crowd sessions={sessions} runId={run.run_id} mode={run.status === 'finished' || run.status === 'failed' ? 'final' : 'live'}
+          variantLabel={(v) => variantName(v, run.config)} caption={run.status === 'finished' || run.status === 'failed' ? 'Where every agent went' : 'following every agent'} />
+      )}
 
       <PanelActivity runId={run.run_id} sessions={sessions} />
 
