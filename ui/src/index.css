@@ -1,0 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import 'tailwindcss';
+
+@theme inline {
+  --color-bg: #09090e;
+  --color-surface: #111318;
+  --color-surface-2: #181b22;
+  --color-border: #1e2230;
+  --color-border-2: #252a38;
+  --color-green: #4ade80;
+  --color-green-dim: #22c55e;
+  --color-text: #e8eaf0;
+  --color-muted: #6b7280;
+  --color-muted-2: #9ca3af;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; padding: 0; }
+
+body {
+  background: #09090e;
+  color: #e8eaf0;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1e2230; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #252a38; }
+
+.mono { font-family: 'JetBrains Mono', monospace; }
+
+.tag-green {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(74,222,128,0.1); color: #4ade80;
+  border: 1px solid rgba(74,222,128,0.2);
+  border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 500;
+}
+.tag-yellow { background: rgba(250,204,21,0.1); color: #facc15; border: 1px solid rgba(250,204,21,0.2); }
+.tag-red { background: rgba(248,113,113,0.1); color: #f87171; border: 1px solid rgba(248,113,113,0.2); }
+.tag-blue { background: rgba(96,165,250,0.1); color: #60a5fa; border: 1px solid rgba(96,165,250,0.2); }
+.tag-muted { background: rgba(107,114,128,0.1); color: #9ca3af; border: 1px solid rgba(107,114,128,0.2); }
+
+.btn-primary {
+  background: #4ade80; color: #09090e; border: none; border-radius: 6px;
+  padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+  font-family: 'Inter', sans-serif; transition: background 0.15s;
+}
+.btn-primary:hover { background: #22c55e; }
+
+.btn-secondary {
+  background: #181b22; color: #e8eaf0; border: 1px solid #1e2230;
+  border-radius: 6px; padding: 7px 16px; font-size: 13px; font-weight: 500;
+  cursor: pointer; font-family: 'Inter', sans-serif;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn-secondary:hover { background: #1e2230; border-color: #252a38; }
+
+.btn-ghost {
+  background: transparent; color: #9ca3af; border: none;
+  padding: 6px 12px; font-size: 13px; cursor: pointer;
+  font-family: 'Inter', sans-serif; border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+.btn-ghost:hover { background: #111318; color: #e8eaf0; }
+
+.card { background: #111318; border: 1px solid #1e2230; border-radius: 8px; }
+
+.input {
+  background: #09090e; border: 1px solid #1e2230; border-radius: 6px;
+  color: #e8eaf0; font-size: 13px; padding: 8px 12px;
+  font-family: 'Inter', sans-serif; outline: none; width: 100%;
+  transition: border-color 0.15s;
+}
+.input:focus { border-color: #4ade80; }
+.input::placeholder { color: #4b5563; }
+
+.progress-bar { height: 3px; background: #1e2230; border-radius: 2px; overflow: hidden; }
+.progress-fill { height: 100%; background: #4ade80; border-radius: 2px; transition: width 0.3s; }
+
+.dot-green { display: inline-block; width: 6px; height: 6px; background: #4ade80; border-radius: 50%; }
+.dot-yellow { display: inline-block; width: 6px; height: 6px; background: #facc15; border-radius: 50%; }
+.dot-red { display: inline-block; width: 6px; height: 6px; background: #f87171; border-radius: 50%; }
