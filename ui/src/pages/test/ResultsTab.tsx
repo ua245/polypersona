@@ -16,7 +16,7 @@ import VerdictHero from './results/VerdictHero';
 
 const STYLES = `
 .pp-theme-row { display: flex; align-items: center; gap: 10px; padding: 8px; margin: 0 -8px; width: calc(100% + 16px); background: transparent; border: none; border-radius: 6px; cursor: pointer; font-family: inherit; text-align: left; color: inherit; }
-.pp-theme-row:hover { background: #181b22; }
+.pp-theme-row:hover { background: var(--pp-surface2); }
 .pp-clamp-5, .pp-clamp-2 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
 .pp-clamp-5 { -webkit-line-clamp: 5; }
 .pp-clamp-2 { -webkit-line-clamp: 2; }
@@ -37,7 +37,7 @@ function Waiting({ run, onOpenLive }: { run: RunState; onOpenLive: () => void })
     : `${counts.finished} of ${counts.total} agents have finished. Once the last one answers its exit survey, the metrics are computed in code and the evaluator writes the verdict. This page updates by itself.`;
   return (
     <div>
-      <div className="card" role="status" style={{ padding: 'clamp(20px, 4vw, 32px)', borderColor: failed ? 'rgba(248,113,113,0.35)' : C.border }}>
+      <div className="card" role="status" style={{ padding: 'clamp(20px, 4vw, 32px)', borderColor: failed ? 'rgba(var(--pp-red-rgb),0.35)' : C.border }}>
         <div className="mono" style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: failed ? C.red : C.muted2, display: 'flex', alignItems: 'center', gap: 8 }}>
           {!failed && !noVerdict && <span className="dot-yellow" style={{ animation: 'pp-pulse 1.4s ease-in-out infinite' }} />}
           {failed ? 'Failed' : evaluating ? 'Judging' : noVerdict ? 'No verdict' : 'In progress'}

@@ -66,7 +66,7 @@ export default function Test() {
         })}
       </div>
 
-      {run.status === 'failed' && <div role="alert" className="card" style={{ padding: 16, borderColor: 'rgba(248,113,113,0.4)', marginBottom: 16, fontSize: 13 }}><b style={{ color: C.red }}>This test failed.</b> {run.error ?? 'No details were recorded.'}</div>}
+      {run.status === 'failed' && <div role="alert" className="card" style={{ padding: 16, borderColor: 'rgba(var(--pp-red-rgb),0.4)', marginBottom: 16, fontSize: 13 }}><b style={{ color: C.red }}>This test failed.</b> {run.error ?? 'No details were recorded.'}</div>}
       {tab === 'live' ? <LiveTab run={run} onOpenResults={() => setTab('results')} /> : <ResultsTab run={run} onOpenLive={() => setTab('live')} />}
     </div>
   );

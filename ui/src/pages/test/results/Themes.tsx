@@ -60,11 +60,11 @@ export function KeyFinding({ run, onSelect }: { run: RunState; onSelect: (index:
   const first = worstIssue(verdict.issues);
   const agents = Object.keys(run.sessions).length;
   return (
-    <section aria-label="Key finding" style={{ padding: 20, borderRadius: 8, border: '1px solid rgba(74,222,128,0.28)', background: 'rgba(74,222,128,0.05)', minWidth: 0 }}>
+    <section aria-label="Key finding" style={{ padding: 20, borderRadius: 8, border: '1px solid rgba(var(--pp-accent-rgb),0.28)', background: 'rgba(var(--pp-accent-rgb),0.05)', minWidth: 0 }}>
       <div className="mono" style={{ color: C.green, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{agents} {agents === 1 ? 'agent' : 'agents'} · key finding</div>
       <p style={{ margin: '10px 0 0', fontSize: 14, lineHeight: 1.65, color: C.text }}>{lead || (winnerOf(run) ? 'The evaluator named a winner without a written rationale.' : 'The evaluator did not write a rationale.')}</p>
       {first && first.issue.recommendation && (
-        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(74,222,128,0.18)' }}>
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(var(--pp-accent-rgb),0.18)' }}>
           <div className="mono" style={{ color: C.green, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Do this first</div>
           <p style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.6, color: C.text }}>{first.issue.recommendation}</p>
           <button type="button" onClick={() => onSelect(first.index)} style={{ marginTop: 8, padding: 0, background: 'none', border: 'none', color: C.muted2, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>

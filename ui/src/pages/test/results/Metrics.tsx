@@ -81,7 +81,7 @@ export default function Metrics({ metrics, winner }: { metrics: VariantMetrics[]
                         {isBest && <span style={{ fontSize: 10, marginLeft: 6, fontFamily: 'Inter, sans-serif' }}>better</span>}
                       </div>
                       <div aria-hidden="true" style={{ height: 3, background: C.border, borderRadius: 2, marginTop: 6, maxWidth: 220 }}>
-                        <div style={{ height: '100%', width: `${pct}%`, minWidth: v ? 2 : 0, borderRadius: 2, background: isBest ? C.green : '#4b5563' }} />
+                        <div style={{ height: '100%', width: `${pct}%`, minWidth: v ? 2 : 0, borderRadius: 2, background: isBest ? C.green : 'var(--pp-muted)' }} />
                       </div>
                     </td>
                   );

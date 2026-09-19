@@ -23,8 +23,8 @@ export default function VerdictHero({ run }: { run: RunState }) {
   return (
     <section aria-labelledby="pp-verdict" className="card" style={{
       padding: 'clamp(20px, 4vw, 32px)', minWidth: 0,
-      borderColor: winner ? 'rgba(74,222,128,0.3)' : C.border2,
-      background: winner ? 'linear-gradient(180deg, rgba(74,222,128,0.07), rgba(74,222,128,0.015) 60%), #111318' : C.surface,
+      borderColor: winner ? 'rgba(var(--pp-accent-rgb),0.3)' : C.border2,
+      background: winner ? 'linear-gradient(180deg, rgba(var(--pp-accent-rgb),0.07), rgba(var(--pp-accent-rgb),0.015) 60%), var(--pp-surface)' : C.surface,
     }}>
       <div className="mono" style={{ color: winner ? C.green : C.muted2, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
         {single ? 'Assessment' : 'Verdict'} · {agents} {agents === 1 ? 'agent' : 'agents'}{single ? '' : ` · ${variants.length} variants`}

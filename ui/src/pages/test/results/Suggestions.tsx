@@ -20,7 +20,7 @@ export default function Suggestions({ run, suggestions }: { run: RunState; sugge
       )}
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 10 }}>
         {suggestions.map((s, i) => (
-          <li key={`${i}-${s.title}`} className="card" style={{ padding: 18, display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', gap: '4px 16px', borderColor: i === 0 ? 'rgba(74,222,128,0.35)' : undefined }}>
+          <li key={`${i}-${s.title}`} className="card" style={{ padding: 18, display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', gap: '4px 16px', borderColor: i === 0 ? 'rgba(var(--pp-accent-rgb),0.35)' : undefined }}>
             <span className="mono" aria-hidden="true" style={{ gridRow: '1 / span 4', width: 30, height: 30, borderRadius: '50%', border: `1px solid ${i === 0 ? C.green : C.border2}`, color: i === 0 ? C.green : C.muted2, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{i + 1}</span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 10px', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em' }}>{s.title}</h3>

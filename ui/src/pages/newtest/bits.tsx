@@ -21,7 +21,7 @@ export function CheckCircle({ on, size = 16 }: { on: boolean; size?: number }) {
   return (
     <span aria-hidden="true" style={{
       flex: 'none', width: size, height: size, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      border: `1.5px solid ${on ? C.green : C.border2}`, background: on ? 'rgba(74,222,128,0.12)' : 'transparent', transition: 'border-color 0.15s, background 0.15s',
+      border: `1.5px solid ${on ? C.green : C.border2}`, background: on ? 'rgba(var(--pp-accent-rgb),0.12)' : 'transparent', transition: 'border-color 0.15s, background 0.15s',
     }}>
       {on && <svg width={size * 0.6} height={size * 0.6} viewBox="0 0 10 10" fill="none"><path d="M2 5.2 4.2 7.4 8 3" stroke={C.green} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>}
     </span>

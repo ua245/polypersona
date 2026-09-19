@@ -19,8 +19,8 @@ function parseEvidence(raw: string): Evidence {
 export function FilterButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button type="button" aria-pressed={active} onClick={onClick} style={{
-      background: active ? 'rgba(74,222,128,0.1)' : 'transparent', color: active ? C.green : C.muted2,
-      border: `1px solid ${active ? 'rgba(74,222,128,0.3)' : C.border}`, borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+      background: active ? 'rgba(var(--pp-accent-rgb),0.1)' : 'transparent', color: active ? C.green : C.muted2,
+      border: `1px solid ${active ? 'rgba(var(--pp-accent-rgb),0.3)' : C.border}`, borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
     }}>
       {children}
     </button>
@@ -60,7 +60,7 @@ function EvidenceChips({ run, evidence }: { run: RunState; evidence: string[] })
         })}
       </div>
       {shown && shown.step != null && shownSession && (
-        <div role="presentation" style={{ position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 20, width: 'min(320px, 100%)', padding: 8, background: C.surface2, border: `1px solid ${C.border2}`, borderRadius: 8, boxShadow: '0 12px 32px rgba(0,0,0,0.5)', pointerEvents: 'none' }}>
+        <div role="presentation" style={{ position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 20, width: 'min(320px, 100%)', padding: 8, background: C.surface2, border: `1px solid ${C.border2}`, borderRadius: 8, boxShadow: '0 12px 32px var(--pp-shadow)', pointerEvents: 'none' }}>
           <Screenshot runId={run.run_id} sessionId={shown.sessionId} idx={shown.step} device={shownSession.device} maxHeight={220} />
           <div style={{ fontSize: 11, color: C.muted2, marginTop: 6 }}>
             {shownSession.persona}, variant {shownSession.variant.toUpperCase()}, screen after step {shown.step}. Click to open the agent at this step.
@@ -74,7 +74,7 @@ function EvidenceChips({ run, evidence }: { run: RunState; evidence: string[] })
 function IssueCard({ run, issue, index, highlighted }: { run: RunState; issue: Issue; index: number; highlighted: boolean }) {
   const keep = issue.kind === 'delight';
   return (
-    <li id={issueDomId(index)} tabIndex={-1} className="card" style={{ padding: 16, listStyle: 'none', scrollMarginTop: 80, outline: 'none', borderColor: highlighted ? C.green : undefined, boxShadow: highlighted ? '0 0 0 3px rgba(74,222,128,0.15)' : 'none', transition: 'border-color 0.3s, box-shadow 0.3s' }}>
+    <li id={issueDomId(index)} tabIndex={-1} className="card" style={{ padding: 16, listStyle: 'none', scrollMarginTop: 80, outline: 'none', borderColor: highlighted ? C.green : undefined, boxShadow: highlighted ? '0 0 0 3px rgba(var(--pp-accent-rgb),0.15)' : 'none', transition: 'border-color 0.3s, box-shadow 0.3s' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         <KindTag kind={issue.kind} severity={issue.severity} />
         <Tag>variant {issue.variant_id.toUpperCase()}</Tag>

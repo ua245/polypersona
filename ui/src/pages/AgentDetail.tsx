@@ -98,7 +98,7 @@ function SurveyCard({ survey, session }: { survey: ExitSurvey; session: SessionS
       <Row k="Believes they completed it">{survey.believes_completed ? 'yes' : 'no'}</Row>
       <Row k="Verified outcome"><SessionTag s={session} /></Row>
       {mismatch && (
-        <div role="note" style={{ marginTop: 8, padding: '8px 10px', borderRadius: 6, fontSize: 12, lineHeight: 1.5, color: C.red, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)' }}>
+        <div role="note" style={{ marginTop: 8, padding: '8px 10px', borderRadius: 6, fontSize: 12, lineHeight: 1.5, color: C.red, background: 'rgba(var(--pp-red-rgb),0.08)', border: '1px solid rgba(var(--pp-red-rgb),0.25)' }}>
           {survey.believes_completed
             ? 'Mismatch: this person thinks they finished, but the task was never verified as complete. They would leave believing it worked.'
             : 'Mismatch: the task was verified as complete, but this person does not believe they finished. The confirmation was not clear to them.'}
@@ -360,7 +360,7 @@ export default function AgentDetail() {
                   <button
                     type="button" aria-pressed={follow} className="btn-secondary"
                     onClick={() => { if (follow && step) setPinnedIdx(step.idx); setFollow(!follow); }}
-                    style={{ padding: '4px 10px', fontSize: 12, color: follow ? C.green : C.muted2, borderColor: follow ? 'rgba(74,222,128,0.35)' : C.border }}
+                    style={{ padding: '4px 10px', fontSize: 12, color: follow ? C.green : C.muted2, borderColor: follow ? 'rgba(var(--pp-accent-rgb),0.35)' : C.border }}
                   >
                     Following live
                   </button>
@@ -383,8 +383,8 @@ export default function AgentDetail() {
                       style={{
                         flexShrink: 0, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, cursor: 'pointer',
                         padding: '5px 9px', borderRadius: 5, fontSize: 11, minWidth: 52,
-                        background: on ? 'rgba(74,222,128,0.12)' : dead ? 'rgba(248,113,113,0.08)' : C.bg,
-                        border: `1px solid ${on ? C.green : dead ? 'rgba(248,113,113,0.45)' : C.border}`,
+                        background: on ? 'rgba(var(--pp-accent-rgb),0.12)' : dead ? 'rgba(var(--pp-red-rgb),0.08)' : C.bg,
+                        border: `1px solid ${on ? C.green : dead ? 'rgba(var(--pp-red-rgb),0.45)' : C.border}`,
                         color: dead ? C.red : on ? C.text : C.muted2,
                       }}
                     >
@@ -419,7 +419,7 @@ export default function AgentDetail() {
                   <li key={v.stage} style={{ borderTop: i === 0 ? 'none' : `1px solid ${C.border}` }}>
                     <button type="button" onClick={() => selectIdx(v.firstIdx)} aria-current={viewing ? 'step' : undefined} title={`Show step ${v.firstIdx}, where the agent first reached ${v.stage}`} style={{
                       display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 8px', border: 'none', borderRadius: 4, cursor: 'pointer', textAlign: 'left',
-                      background: viewing ? 'rgba(74,222,128,0.06)' : 'transparent', color: C.text, fontFamily: 'inherit', fontSize: 13,
+                      background: viewing ? 'rgba(var(--pp-accent-rgb),0.06)' : 'transparent', color: C.text, fontFamily: 'inherit', fontSize: 13,
                     }}>
                       {now
                         ? <span aria-hidden="true" style={{ width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><span className="dot-yellow" style={{ animation: 'pp-pulse 1.4s ease-in-out infinite' }} /></span>
@@ -466,7 +466,7 @@ export default function AgentDetail() {
                 <button
                   type="button" className="btn-secondary" disabled={busy != null}
                   onClick={() => (confirmStop ? sendStop() : setConfirmStop(true))} onBlur={() => setConfirmStop(false)}
-                  style={confirmStop ? { color: C.red, borderColor: 'rgba(248,113,113,0.5)' } : undefined}
+                  style={confirmStop ? { color: C.red, borderColor: 'rgba(var(--pp-red-rgb),0.5)' } : undefined}
                 >
                   {busy === 'stop' ? 'Stopping…' : confirmStop ? 'Click again to stop' : 'Stop agent'}
                 </button>
@@ -506,7 +506,7 @@ export default function AgentDetail() {
                     <li key={e.key}>
                       <button type="button" onClick={() => selectIdx(e.stepIdx)} aria-current={on ? 'step' : undefined} title={`Show step ${e.stepIdx}`} style={{
                         display: 'grid', gridTemplateColumns: '34px minmax(0,1fr)', gap: 8, width: '100%', padding: '4px 6px', border: 'none', borderRadius: 4, textAlign: 'left', cursor: 'pointer',
-                        background: on ? 'rgba(74,222,128,0.07)' : 'transparent', fontFamily: 'inherit', fontSize: 12, lineHeight: 1.45,
+                        background: on ? 'rgba(var(--pp-accent-rgb),0.07)' : 'transparent', fontFamily: 'inherit', fontSize: 12, lineHeight: 1.45,
                       }}>
                         <span className="mono" style={{ fontSize: 10, color: C.muted, paddingTop: 2 }}>{fmtOffset(e.ts - t0)}</span>
                         <span style={{ color: e.color, overflowWrap: 'anywhere' }}>
@@ -542,7 +542,7 @@ export default function AgentDetail() {
                     <li key={i}>
                       <button type="button" onClick={() => selectIdx(o.step_idx)} title={`Show step ${o.step_idx}`} style={{
                         display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', padding: '8px 10px', borderRadius: 6, fontFamily: 'inherit',
-                        background: red ? 'rgba(248,113,113,0.08)' : 'rgba(250,204,21,0.07)', border: `1px solid ${red ? 'rgba(248,113,113,0.3)' : 'rgba(250,204,21,0.28)'}`,
+                        background: red ? 'rgba(var(--pp-red-rgb),0.08)' : 'rgba(var(--pp-yellow-rgb),0.07)', border: `1px solid ${red ? 'rgba(var(--pp-red-rgb),0.3)' : 'rgba(var(--pp-yellow-rgb),0.28)'}`,
                       }}>
                         <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: red ? C.red : C.yellow }}>{o.kind[0]!.toUpperCase() + o.kind.slice(1)} · severity {o.severity} · step {o.step_idx}</span>
                         <span style={{ display: 'block', fontSize: 12, lineHeight: 1.5, color: C.muted2, marginTop: 2 }}>{o.text}</span>
@@ -579,7 +579,7 @@ export default function AgentDetail() {
                 {obsNewestFirst.map(({ o, i }) => {
                   const here = step?.idx === o.step_idx;
                   return (
-                    <li key={i} style={{ padding: '8px 10px', borderRadius: 6, background: here ? 'rgba(74,222,128,0.06)' : C.bg, border: `1px solid ${here ? 'rgba(74,222,128,0.4)' : C.border}` }}>
+                    <li key={i} style={{ padding: '8px 10px', borderRadius: 6, background: here ? 'rgba(var(--pp-accent-rgb),0.06)' : C.bg, border: `1px solid ${here ? 'rgba(var(--pp-accent-rgb),0.4)' : C.border}` }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                         <KindTag kind={o.kind} severity={o.severity} />
                         <button type="button" className="btn-ghost mono" aria-current={here ? 'step' : undefined} onClick={() => selectIdx(o.step_idx)} style={{ padding: '1px 6px', fontSize: 11, color: here ? C.green : C.muted2 }}>

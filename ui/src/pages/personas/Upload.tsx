@@ -145,7 +145,7 @@ export default function Upload({ onSave, onDone }: { onSave: (personas: Persona[
         {dialog}
         <div
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}
-          style={{ padding: '40px 20px', borderRadius: 10, textAlign: 'center', border: `1.5px dashed ${dragging ? C.green : C.border2}`, background: dragging ? 'rgba(74,222,128,0.05)' : 'transparent', transition: 'border-color 0.15s, background 0.15s' }}
+          style={{ padding: '40px 20px', borderRadius: 10, textAlign: 'center', border: `1.5px dashed ${dragging ? C.green : C.border2}`, background: dragging ? 'rgba(var(--pp-accent-rgb),0.05)' : 'transparent', transition: 'border-color 0.15s, background 0.15s' }}
         >
           <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', margin: '0 auto 12px' }}>
             <path d="M12 16V4" /><path d="m7 9 5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
@@ -252,7 +252,7 @@ export default function Upload({ onSave, onDone }: { onSave: (personas: Persona[
           <button type="button" className="btn-ghost" onClick={reset}>Use a different file</button>
         </div>
 
-        <div style={{ marginTop: 14, padding: '10px 12px', borderRadius: 6, fontSize: 13, lineHeight: 1.5, background: stats.direct ? 'rgba(74,222,128,0.06)' : 'rgba(250,204,21,0.06)', border: `1px solid ${stats.direct ? 'rgba(74,222,128,0.25)' : 'rgba(250,204,21,0.25)'}` }}>
+        <div style={{ marginTop: 14, padding: '10px 12px', borderRadius: 6, fontSize: 13, lineHeight: 1.5, background: stats.direct ? 'rgba(var(--pp-accent-rgb),0.06)' : 'rgba(var(--pp-yellow-rgb),0.06)', border: `1px solid ${stats.direct ? 'rgba(var(--pp-accent-rgb),0.25)' : 'rgba(var(--pp-yellow-rgb),0.25)'}` }}>
           {stats.direct
             ? <><b style={{ color: C.green, fontWeight: 600 }}>Mapped directly, no AI cost.</b> The file has name and bio columns, so each row becomes a persona in code.</>
             : <><b style={{ color: C.yellow, fontWeight: 600 }}>Interpreted by Gemini.</b> There are no name and bio columns, so a model reads each chosen row and writes the persona. Only the rows in your panel are sent.</>}
@@ -302,7 +302,7 @@ export default function Upload({ onSave, onDone }: { onSave: (personas: Persona[
           <div role="group" aria-label="Panel size" style={{ display: 'inline-flex', border: `1px solid ${C.border}`, borderRadius: 6, overflow: 'hidden' }}>
             {SIZES.map((n) => {
               const on = size === n;
-              return <button key={n} type="button" aria-pressed={on} disabled={n > total && n !== SIZES[0]} onClick={() => { setSize(n); resample(n, new Set()); }} className="mono" style={{ width: 44, height: 32, fontSize: 13, cursor: 'pointer', border: 'none', background: on ? 'rgba(74,222,128,0.12)' : 'transparent', color: on ? C.green : C.muted2 }}>{n}</button>;
+              return <button key={n} type="button" aria-pressed={on} disabled={n > total && n !== SIZES[0]} onClick={() => { setSize(n); resample(n, new Set()); }} className="mono" style={{ width: 44, height: 32, fontSize: 13, cursor: 'pointer', border: 'none', background: on ? 'rgba(var(--pp-accent-rgb),0.12)' : 'transparent', color: on ? C.green : C.muted2 }}>{n}</button>;
             })}
           </div>
         </div>

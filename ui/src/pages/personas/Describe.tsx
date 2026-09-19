@@ -66,7 +66,7 @@ export default function Describe({ onSave }: { onSave: (personas: Persona[]) => 
               {COUNTS.map((n) => (
                 <button key={n} type="button" aria-pressed={count === n} disabled={busy} onClick={() => setCount(n)} className="mono" style={{
                   width: 36, height: 32, borderRadius: 6, fontSize: 13, cursor: 'pointer',
-                  background: count === n ? 'rgba(74,222,128,0.1)' : 'transparent', color: count === n ? C.green : C.muted2, border: `1px solid ${count === n ? 'rgba(74,222,128,0.3)' : C.border}`,
+                  background: count === n ? 'rgba(var(--pp-accent-rgb),0.1)' : 'transparent', color: count === n ? C.green : C.muted2, border: `1px solid ${count === n ? 'rgba(var(--pp-accent-rgb),0.3)' : C.border}`,
                 }}>{n}</button>
               ))}
             </div>
