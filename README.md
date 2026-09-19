@@ -99,38 +99,194 @@ npx wrangler pages deploy dist --project-name polypersona --branch main --force 
 - The API caps a test at 10 personas and 3 repeats, and each account at 12 tests a day.
 - Viewing tests needs no sign in at the API level. Starting tests, guiding agents, asking the evaluator and creating personas do.
 
-## Pydantic AI Gateway and Logfire
+## Pydantic AI Gateway, rule and guardrail (hackathon)
 
-Model calls can go through the Pydantic AI Gateway, which applies optimization rules and
-guardrails to every call on an endpoint, and every agent run, model call and tool call is traced
-in Logfire.
+Every persona agent's model call goes through the Pydantic AI Gateway endpoint `persona`, which
+injects our optimization rule and applies our guardrail before the request reaches Gemini. Every
+agent run, model call and tool call is traced in Logfire. No agent code changes between "rule off"
+and "rule on": everything happens in the Gateway.
 
 ```
-persona agent (Modal container) ──► Gateway endpoint "persona" (rules, guardrails) ──► Gemini
-evaluator                       ──► Gateway endpoint "evaluator"                   ──► Gemini
-        └── Logfire traces: one "persona session <id>" span per session
+persona agent (Modal container) ──► Gateway endpoint "persona" ──► Gemini (BYOK Custom provider)
+                                      ├─ rule: UX evidence protocol (injected into the system message)
+                                      └─ guardrail: Payment card number (Redact)
+        └── Logfire: one "persona session <id>" trace per session
 ```
 
-1. In Logfire → Gateway → Providers, add a **Custom** provider: base URL
-   `https://generativelanguage.googleapis.com/v1beta/openai`, API key = your Gemini key,
-   "Require pricing data" off. Attach it to endpoints `persona` and `evaluator`. Don't name an
-   endpoint `gemini`: the Gateway reserves it as an alias for its Vertex route.
-2. In `.env`, set `PYDANTIC_AI_GATEWAY_BASE_URL`, `PYDANTIC_AI_GATEWAY_API_KEY`, `LOGFIRE_TOKEN`,
-   `PERSONA_MODEL=gateway/persona:gemini-3.8-flash` and `EVALUATOR_MODEL=gateway/evaluator:gemini-pro-latest`.
-   Any `gateway/<endpoint>:<model>` string works (`polypersona/llm.py`); plain model names call Gemini directly.
-3. Gemini 3 needs its tool-call "thought signatures" sent back; the OpenAI-compatible API returns
-   them in a field the OpenAI client drops, so `polypersona/llm.py` round-trips them.
-4. To measure a rule, run the same command with it disabled and enabled, then compare:
+### Setup
+
+1. **Logfire → Gateway → Providers → add a Custom provider:** base URL
+   `https://generativelanguage.googleapis.com/v1beta/openai`, API key = your Gemini key, "Require pricing
+   data" off. Attach it to an endpoint named **`persona`**. Don't name an endpoint `gemini`: the
+   Gateway reserves that name as an alias for its Vertex route.
+2. **`.env`:**
+   ```
+   PYDANTIC_AI_GATEWAY_BASE_URL=https://gateway-eu.pydantic.dev/proxy   # the Gateway root, not the endpoint URL
+   PYDANTIC_AI_GATEWAY_API_KEY=<key with "Use AI Gateway">
+   LOGFIRE_TOKEN=<key with "Send telemetry">
+   PERSONA_MODEL=gateway/persona:gemini-3.8-flash
+   ```
+   If `PERSONA_MODEL` is missing, the agents silently call Gemini directly and the rule never applies.
+   Check this first if a run shows no change.
+3. Turn on the tabs by adding `#enableFlags=gateway_optimizations,gateway_guardrails_beta` to your
+   Logfire project URL and reloading. **Optimizations** and **Guardrails** then appear under Gateway.
+
+### The rule: `UX evidence protocol`
+
+Gateway → Optimizations → New optimization. Category **Style**, target route **`persona`** (whole route), status **On**:
+
+```
+UX EVIDENCE PROTOCOL. Applies to every observation you record.
+1. Begin the observation text with the exact visible label or message of the element it concerns, copied character for character inside double quotes. Then write " — " followed by the problem and its effect on you, in 25 words or fewer. Example: "Continue" — pale grey, looks disabled; I hesitated before clicking it.
+2. Record one observation per distinct problem. Never combine two problems in one observation.
+3. Keep every tool's reasoning argument to 12 words or fewer.
+```
+
+**Why:** persona feedback is the product. Without the rule it is loosely worded, so it's hard to
+act on, hard to check and hard to merge across personas. With it, every observation names the exact
+on-screen element, so it can be found on the page, checked in code and grouped with other reports.
+
+**Result.** Same code, same command, both runs through `persona`; only the rule differs. 3 personas × variants b, c:
+
+| Metric (variant b · variant c) | Rule off | Rule on |
+|---|---|---|
+| Observations leading with the quoted UI element | 0% · 12% | **100% · 100%** |
+| Observations quoting UI text at all | 62% · 62% | **100% · 100%** |
+| Quotes found verbatim in the site (not invented) | 12/12 · 4/5 | 19/20 · 3/3 |
+| Planted flaws found | 6/6 · 1/1 | 6/6 · 1/1 |
+| Reasoning words per action | 8.0 · 7.6 | **5.1 · 5.6** |
+| Output tokens per action | 67 · 68 | 64 · 58 |
+| Delight observations on c | 5 | 0 (side effect: the rule frames every observation as a problem) |
+
+Same persona, same flaw:
+- Rule off: *Form returned raw 'Error 422' without explaining what field or format is invalid. Very sloppy engineering.*
+- Rule on: *"Error 422" — raw HTTP status code shown below phone field with no explanation of which input failed or how to fix it.*
+
+### The guardrail: `Payment card number`
+
+Gateway → Guardrails → New protection → **Custom pattern**. Apply to **`persona`**, Action **Redact**:
+
+```
+\b(?:\d[ -]?){12,18}\d\b
+```
+
+**Why:** personas type a payment card at checkout. The code already keeps it from the model: the
+agent types `{card number}` and the browser tool fills in the real value. The guardrail guarantees,
+at the network boundary, that a card number never reaches the model, even if one appears in a prompt,
+a CSV population or page text. It cleans the **request**; it does not filter the model's response.
+
+### Test it from the UI
+
+There are two UIs: the **PolyPersona web app**, where you run tests and read the personas'
+feedback, and **Logfire**, where you see what the Gateway did to each request.
+
+**Before you start:** the web app's agents run in the *deployed* Modal app, which reads `.env` at
+deploy time. After setting `PERSONA_MODEL=gateway/persona:gemini-3.8-flash`, redeploy, or UI tests
+will call Gemini directly and bypass the rule:
 
 ```bash
-uv run python -m polypersona run --modal --variants b,c --personas 3
-uv run python scripts/flaw_recall.py runs/<before> runs/<after>
+uv run modal deploy modal_app.py
 ```
 
-`scripts/flaw_recall.py` reports, in code, planted-flaw recall, how many observations quote the
-UI (and whether each quote exists verbatim in the site), and output tokens. Card numbers never reach
-the model: personas type `{card number}` and the tool layer fills in the real value, so a Gateway
-guardrail can redact them without breaking checkout.
+#### A. See the rule change the personas' feedback (PolyPersona web app)
+
+1. **Sign in**, then choose **New test**. Compare the demo shop's variants **b** and **c**, with the 3
+   built-in personas, 1 repeat. Press **Start test**.
+2. **Live tab:** click any agent, for example Dev on variant b. Watch its observations appear as it
+   hits the popup, the account wall, the "Error 422" and the late fee.
+   - **Rule on:** every observation starts with the exact on-screen text in quotes, then " — ", for example
+     `"Error 422" — raw HTTP status code shown below phone field with no explanation…`. The agent's
+     reasoning under each action is short (about 5 words).
+   - **Rule off:** the same problems are described in free-form prose, for example
+     `Form returned raw 'Error 422' without explaining what field…`.
+3. **Results tab:** the verdict and issues are built from those observations. With the rule on,
+   issues name the exact button or message, so you can find each one on the page.
+4. **Compare:** in Logfire, disable the rule (Gateway → Optimizations → UX evidence protocol →
+   disable), start the *same* test again, and compare the two tests' observations. Nothing in the
+   app changes between the two tests; only the Gateway does.
+
+#### B. See the card number stay away from the model (PolyPersona web app)
+
+In the Live view, open an agent at the checkout step. The card field the agent typed shows
+`{card number}` in its step list, while the checkout still completes: the browser tool fills in the
+real card, so the model never handles it. The guardrail is the second layer; section D shows it firing.
+
+#### C. See the rule being applied (Logfire)
+
+1. **Gateway → Optimizations → UX evidence protocol:** check targeting shows route `persona`,
+   status **On**. The **Usage** chart shows how many requests the rule ran on and how many it
+   changed. If "changed" stays at zero, the rule isn't bound to the route.
+2. **Live (traces):** search `persona session dev-b-0` and open one trace from a rule-on test and one
+   from a rule-off test. These are the before/after links. Our spans are recorded on our side,
+   *before* the Gateway, so they show the request as the agent sent it, without the injected text.
+   What differs between the two traces is the model's output: the `record_observation` tool calls
+   start with `"<element>" — …` only in the rule-on trace. The Gateway's own proof is the
+   `x-pydantic-gateway-optimizations-applied: UX_evidence_protocol` response header, which
+   `scripts/gateway_check.py` prints, and the rule's Usage chart.
+3. **Gateway → Overview / Spending:** requests and cost accumulate on the `persona` endpoint, which
+   proves the calls go through the Gateway.
+
+#### D. See the guardrail fire (Logfire)
+
+1. **Gateway → Guardrails → Custom → Payment card number:** check the regex, **Apply to: `persona`**,
+   **Action: Redact**. Observe only records a match and doesn't stop anything.
+2. **Pattern tests** on that page: paste each sample. These should **match**: `4242 4242 4242 4242`,
+   `4242424242424242`, `4000-0566-5566-5556`, `378282246310005`. These should **not match**:
+   `(614) 555-0142`, `ZIP 43215`, `CVC 314`, `09/28`, `2026-09-19`, `Order #1234-5678`.
+3. **Make it fire:** run `uv run python scripts/gateway_check.py` (next section). Each card case sends
+   the digits and asks the model to echo them back. In Logfire Live, open those requests: our span
+   shows the prompt *with* the digits, because it is recorded before the Gateway, and the model's
+   answer as `my card is [REDACTED]`. The model can only return the placeholder if the Gateway
+   replaced the digits before they reached it. The guardrail's usage count on its page goes up, and the
+   script prints the `x-pydantic-gateway-guardrails-applied: Payment_card_number=1/1;redact` header.
+
+### Test it from the command line
+
+**1. Route, rule and guardrail in one command:**
+
+```bash
+uv run python scripts/gateway_check.py
+```
+
+Expected output: the route is served by provider `gemini`, `optimizations applied: UX_evidence_protocol`, and `7/7`:
+
+| Case | Sent | Model should see | Guardrail header |
+|---|---|---|---|
+| card, spaced | `my card is 4242 4242 4242 4242` | `my card is [REDACTED]` | `Payment_card_number=1/1;redact` |
+| card, no spaces | `card 4242424242424242` | `card [REDACTED]` | redact |
+| card, dashes | `use 4000-0566-5566-5556 please` | `use [REDACTED] please` | redact |
+| card, 15-digit Amex | `amex 378282246310005` | `amex [REDACTED]` | redact |
+| near miss | `call me on (614) 555-0142, ZIP 43215` | unchanged | none |
+| near miss | `expiry 09/28, CVC 314` | unchanged | none |
+| near miss | `ordered 2026-09-19, order #1234-5678` | unchanged | none |
+
+Each case asks the model to echo the text back character for character. If redaction works, the model
+returns the placeholder, which proves it never received the digits.
+
+**2. The rule's before/after on real sessions** (about 3 minutes per run, 6 Modal containers):
+
+```bash
+# Gateway → Optimizations → UX evidence protocol → disable, then:
+uv run python -m polypersona run --modal --variants b,c --personas 3
+# enable it again, then:
+uv run python -m polypersona run --modal --variants b,c --personas 3
+uv run python scripts/flaw_recall.py runs/<rule-off run> runs/<rule-on run>
+```
+
+`scripts/flaw_recall.py` computes the table above in code. It checks every quote against the site's
+real text, so invented quotes are caught.
+
+**3. Checkout still works with the guardrail on:**
+
+```bash
+uv run python -m polypersona run --modal --variants a --personas 1
+```
+
+Expected: `completed`. In `runs/<id>/sessions/*/report.json`, the typed values show `{card number}`
+and `{card CVC}`, never the digits.
+
+**4. In Logfire:** search `persona session dev-b-0` and open one trace per run. Our spans are recorded
+before the Gateway, so compare the model's *outputs* (the observation format), not the prompts.
 
 ## Repository map
 
@@ -139,7 +295,7 @@ modal_app.py            Modal app: agent sessions, cloud orchestrator, HTTP API
 polypersona/            Python package (agent, browser, evaluator, orchestration, API, CLI)
 site/                   Demo coffee shop with variants a, b and c
 ui/                     React + Vite + Tailwind front end, deployed to Cloudflare Pages
-scripts/                Rule before/after measurement
+scripts/                Gateway checks and rule before/after measurement
 tests/                  Offline tests
 docs/ARCHITECTURE.md    How it all fits together
 ```
