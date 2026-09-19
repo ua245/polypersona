@@ -105,7 +105,7 @@ npx wrangler pages deploy dist --project-name polypersona --branch main --force 
 modal_app.py            Modal app: agent sessions, cloud orchestrator, HTTP API
 polypersona/            Python package (agent, browser, evaluator, orchestration, API, CLI)
 site/                   Demo coffee shop with variants a, b and c
-ui/                     React + Vite + Tailwind front end, deployed to Cloudflare Workers
+ui/                     React + Vite + Tailwind front end, deployed to Cloudflare Pages
 tests/                  Offline tests
 docs/ARCHITECTURE.md    How it all fits together
 ```
