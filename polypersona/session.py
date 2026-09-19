@@ -8,6 +8,7 @@ import traceback
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import logfire
 from pydantic_ai import BinaryContent, UsageLimits
 from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.usage import RunUsage
@@ -65,16 +66,18 @@ async def run_session(
                 prompt.append(f"Because you read everything, here is the text on the page:\n{await browser.page_text()}")
             timed_out = False
             try:
-                result = await asyncio.wait_for(
-                    persona_agent.run(
-                        prompt,
-                        deps=deps,
-                        model=make_model(PERSONA_MODEL),
-                        usage=usage,
-                        usage_limits=UsageLimits(request_limit=persona.patience_steps * 2 + 10),
-                    ),
-                    timeout=timeout_s,
-                )
+                # One named trace per session in Logfire, so baseline and optimized runs are easy to find.
+                with logfire.span("persona session {session_id}", session_id=session_id, persona=persona.id, variant=task.variant_id, model=PERSONA_MODEL):
+                    result = await asyncio.wait_for(
+                        persona_agent.run(
+                            prompt,
+                            deps=deps,
+                            model=make_model(PERSONA_MODEL),
+                            usage=usage,
+                            usage_limits=UsageLimits(request_limit=persona.patience_steps * 2 + 10),
+                        ),
+                        timeout=timeout_s,
+                    )
                 report.exit_survey = result.output
             except UsageLimitExceeded:
                 timed_out = True
