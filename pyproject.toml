@@ -8,3 +8,13 @@ dependencies = [
     "pydantic-ai-slim[google]>=2.46.0",
     "python-dotenv>=1.2.3",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+filterwarnings = ["ignore::pytest.PytestCollectionWarning"]

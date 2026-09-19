@@ -5,6 +5,7 @@ import os
 from pydantic_ai import Agent
 
 from .models import Persona, TestTask
+from .persona_agent import make_model
 
 DEFAULT_PERSONAS = [
     Persona(
@@ -55,7 +56,7 @@ DEMO_FIXTURES = {
 }
 
 
-def demo_tasks() -> list[TestTask]:
+def demo_tasks(variants: list[str] | tuple[str, ...] = ("a", "b")) -> list[TestTask]:
     return [
         TestTask(
             variant_id=v,
@@ -63,15 +64,16 @@ def demo_tasks() -> list[TestTask]:
             goal="Buy one 250g bag of Ethiopia Yirgacheffe coffee and have it shipped to your home.",
             fixtures=DEMO_FIXTURES,
             success_url_contains="#/confirmed",
+            success_text_contains="Order confirmed",
         )
-        for v in ("a", "b")
+        for v in variants
     ]
 
 
 async def generate_personas(audience: str, n: int) -> list[Persona]:
     """Invent n contrasting personas for a described audience."""
     agent = Agent(
-        os.environ.get("EVALUATOR_MODEL", "google:gemini-3.8-flash"),
+        make_model(os.environ.get("PERSONA_MODEL", "gemini-3.8-flash")),
         output_type=list[Persona],
         instructions=(
             "You design user research panels. Create realistic, specific personas for usability testing. "
