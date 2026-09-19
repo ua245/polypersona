@@ -13,8 +13,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 
-from polypersona.personas.fixtures import PERSONAS
-from polypersona.personas.orchestrator import RunConfig, execute_run, new_run_id
+from polypersona.sandboxed.fixtures import PERSONAS
+from polypersona.sandboxed.orchestrator import RunConfig, execute_run, new_run_id
 from polypersona.sandbox.config import RUNS_DIR
 
 log = logging.getLogger(__name__)
