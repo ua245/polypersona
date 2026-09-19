@@ -1,5 +1,9 @@
-.env
 .venv/
-runs/
 __pycache__/
 *.pyc
+.env
+runs/
+demo_app/data/
+node_modules/
+dist/
+.pytest_cache/

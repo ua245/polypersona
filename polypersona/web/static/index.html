@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PolyPersona</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #fff; --ink: #1b1f24; --muted: #667085; --line: #e4e7ec;
+  --accent: #3b5bdb; --ok: #1f8a4c; --warn: #b54708; --bad: #c0362c; --chip: #eef1f5;
+  --a: #7048e8; --b: #0c8599;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0f1115; --panel: #171a21; --ink: #e6e8ec; --muted: #98a2b3; --line: #2a2f3a;
+    --accent: #748ffc; --ok: #40c057; --warn: #fab005; --bad: #ff6b6b; --chip: #232833; --a: #9775fa; --b: #3bc9db; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px/1.45 -apple-system, system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 18px; margin: 0 12px 0 0; }
+select, button, input { font: inherit; color: inherit; }
+select, input[type=number] { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+button { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { opacity: .5; cursor: default; }
+main { padding: 16px 20px 60px; max-width: 1500px; margin: 0 auto; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+.muted { color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.chip { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--chip); font-size: 12px; white-space: nowrap; }
+.chip.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.chip.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.chip.bad { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
+.chip.live { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.v { font-weight: 700; padding: 1px 8px; border-radius: 6px; color: #fff; }
+.v.A { background: var(--a); } .v.B { background: var(--b); }
+.notice { font-size: 12px; color: var(--muted); }
+.launcher label { display: inline-flex; gap: 4px; align-items: center; margin-right: 8px; }
+.pairs { display: grid; gap: 14px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 900px) { .pair { grid-template-columns: 1fr; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.card-head { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.card-head .who { font-weight: 600; }
+.shot { background: #000; display: flex; justify-content: center; align-items: center; height: 340px; position: relative; }
+.shot img { max-width: 100%; max-height: 340px; cursor: zoom-in; }
+.shot .cap { position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,.7); color: #fff; font-size: 12px; padding: 2px 8px; border-radius: 6px; max-width: calc(100% - 16px); }
+.shot .empty { color: #aaa; }
+.timeline { max-height: 260px; overflow: auto; padding: 6px 0; font-size: 13px; }
+.ev { display: grid; grid-template-columns: 34px 1fr; gap: 6px; padding: 4px 12px; cursor: pointer; }
+.ev:hover, .ev.sel { background: var(--chip); }
+.ev .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+.ev .act { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.ev .err { color: var(--bad); }
+.obs { margin: 2px 12px 6px 46px; padding: 6px 8px; border-left: 3px solid var(--warn); background: var(--chip); border-radius: 4px; font-size: 13px; }
+.obs.delight { border-color: var(--ok); } .obs.bug { border-color: var(--bad); }
+.survey { padding: 10px 12px; border-top: 1px solid var(--line); font-size: 13px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.verdict h2 { margin: 4px 0 6px; font-size: 20px; }
+.issue { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.cite { cursor: pointer; color: var(--accent); text-decoration: underline; font-size: 12px; margin-right: 6px; }
+#lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.85); display: none; align-items: center; justify-content: center; z-index: 20; cursor: zoom-out; }
+#lightbox img { max-width: 95vw; max-height: 92vh; }
+.grid2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; }
+@media (max-width: 1000px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>PolyPersona</h1>
+  <select id="runPick" aria-label="Run"></select>
+  <span id="runStatus"></span>
+  <span style="flex:1"></span>
+  <button id="cancelBtn" disabled>Cancel run</button>
+</header>
+<main>
+  <div class="panel launcher">
+    <div class="row">
+      <strong>New run</strong>
+      <span id="personaPicks"></span>
+      <label>Repeats <input id="repeats" type="number" min="1" max="5" value="1" style="width:56px"></label>
+      <label>Parallel sandboxes <input id="parallel" type="number" min="1" max="10" value="6" style="width:56px"></label>
+      <button class="primary" id="startBtn">Start run</button>
+      <span id="startMsg" class="muted"></span>
+    </div>
+    <p class="notice">Each session is a Gemini persona agent driving a real Chromium browser inside its own Modal sandbox,
+      where variant A or B of the site runs on localhost. The timeline shows the agent's tool calls and the short
+      intent it gives for each; hidden model reasoning is not shown. "Completed" is checked against the sandbox's
+      database, not the agent's claim.</p>
+  </div>
+
+  <div id="summary"></div>
+  <div class="pairs" id="pairs"></div>
+</main>
+<div id="lightbox"><img alt="Screenshot, enlarged"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let currentRun = null, pollTimer = null, selected = {}, lastData = null;
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+  return r.json();
+}
+
+async function loadPersonas() {
+  const ps = await api("/api/personas");
+  $("#personaPicks").innerHTML = ps.map((p) =>
+    `<label title="${esc(p.bio)}"><input type="checkbox" value="${esc(p.id)}" checked> ${esc(p.name)}
+     <span class="muted">(${p.viewport}, ${p.tech_savviness})</span></label>`).join("");
+}
+
+async function loadRuns(selectId) {
+  const runs = await api("/api/runs");
+  $("#runPick").innerHTML = runs.length
+    ? runs.map((r) => `<option value="${esc(r.run_id)}">${esc(r.run_id)} · ${esc(r.status)}${r.live ? " · live" : ""}</option>`).join("")
+    : `<option value="">No runs yet</option>`;
+  const id = selectId || currentRun || runs[0]?.run_id;
+  if (id) { $("#runPick").value = id; showRun(id); }
+}
+
+function outcomeChip(s) {
+  if (s.status !== "finished") return `<span class="chip live">${esc(s.status)}</span>`;
+  const cls = { completed: "ok", gave_up: "warn", out_of_steps: "warn", error: "bad" }[s.outcome] || "";
+  return `<span class="chip ${cls}">${esc((s.outcome || "").replace(/_/g, " "))}</span>`;
+}
+
+function stepLabel(st) {
+  const a = st.args || {};
+  switch (st.action) {
+    case "click": return `click (${a.x}, ${a.y})`;
+    case "type": return `type "${a.text}"${a.enter ? " + Enter" : ""}`;
+    case "press": return `press ${a.key}`;
+    case "scroll": return `scroll ${a.direction}`;
+    case "goto": return `open ${a.url}`;
+    default: return st.action;
+  }
+}
+
+function sessionCard(s) {
+  if (!s) return `<div class="card"><div class="card-head muted">missing</div></div>`;
+  const steps = s.steps || [];
+  const selIdx = selected[s.session_id];
+  const shown = steps.find((x) => x.idx === selIdx) || steps[steps.length - 1];
+  const obsByStep = {};
+  (s.observations || []).forEach((o) => (obsByStep[o.step_idx] ||= []).push(o));
+  const img = shown
+    ? `<img src="/files/${esc(currentRun)}/${esc(shown.screenshot)}" alt="Screenshot after step ${shown.idx}" data-full>
+       <div class="cap">step ${shown.idx} · ${esc(shown.url)}</div>`
+    : `<div class="empty">${s.status === "queued" ? "waiting for a sandbox…" : "starting browser…"}</div>`;
+  const tl = steps.map((st) => `
+      <div class="ev ${shown && st.idx === shown.idx ? "sel" : ""}" data-sid="${esc(s.session_id)}" data-idx="${st.idx}">
+        <span class="n">#${st.idx}</span>
+        <span><span class="act">${esc(stepLabel(st))}</span> — ${esc(st.intent)}
+          ${st.changed ? "" : `<span class="chip">no change</span>`}
+          ${st.error ? `<div class="err">${esc(st.error)}</div>` : ""}
+          ${st.note ? `<div class="muted" style="font-size:12px">${esc(st.note)}</div>` : ""}</span>
+      </div>
+      ${(obsByStep[st.idx] || []).map((o) => `<div class="obs ${esc(o.kind)}"><strong>${esc(o.kind)}</strong> · severity ${o.severity}<br>${esc(o.text)}</div>`).join("")}`).join("");
+  const sv = s.exit_survey;
+  const survey = sv ? `<div class="survey"><strong>Exit survey</strong> · ease ${sv.ease_1_to_5}/5 ·
+      thinks they finished: ${sv.believes_completed ? "yes" : "no"} · would return: ${sv.would_return ? "yes" : "no"}<br>
+      “${esc(sv.summary)}”${sv.biggest_problem ? `<br><span class="muted">Worst moment:</span> ${esc(sv.biggest_problem)}` : ""}</div>` : "";
+  const err = s.error ? `<div class="survey" style="color:var(--bad)">${esc(s.error)}</div>` : "";
+  const verified = s.verified_order ? ` <span class="chip ok" title="found in the sandbox database">order #${s.verified_order.id} verified</span>` : "";
+  const toks = s.model_requests ? `<span class="muted">${s.model_requests} model calls · ${s.input_tokens.toLocaleString()} in / ${s.output_tokens.toLocaleString()} out tokens</span>` : "";
+  return `<div class="card">
+    <div class="card-head">
+      <div class="row"><span class="v ${s.variant}">${s.variant}</span>
+        <span class="who">${esc(s.persona.name)}</span>
+        <span class="muted">${esc(s.persona.viewport)} · ${esc(s.persona.tech_savviness)} savvy · ${esc(s.persona.reading_style)}</span>
+        ${outcomeChip(s)}${verified}</div>
+      <div class="row muted" style="font-size:12px;margin-top:4px">
+        <span>sandbox ${esc(s.sandbox_id || "—")}</span>
+        <span>${steps.length} steps (patience ${s.persona.patience_steps})</span>
+        ${s.duration_s != null ? `<span>${s.duration_s}s</span>` : ""} ${toks}</div>
+    </div>
+    <div class="shot">${img}</div>
+    <div class="timeline">${tl || `<div class="ev muted"><span></span><span>no actions yet</span></div>`}</div>
+    ${survey}${err}
+  </div>`;
+}
+
+function metricsTable(m) {
+  if (!m) return "";
+  const rows = [
+    ["Sessions", (v) => v.sessions],
+    ["Completed (verified)", (v) => `${v.completed} (${Math.round(v.completion_rate * 100)}%)`],
+    ["Median steps to complete", (v) => v.median_steps_to_complete ?? "—"],
+    ["Median duration", (v) => v.median_duration_s != null ? `${v.median_duration_s}s` : "—"],
+    ["Mean ease (1–5, self-reported)", (v) => v.mean_ease ?? "—"],
+    ["Clicks with no visible effect", (v) => v.dead_clicks],
+    ["Backtracks", (v) => v.backtracks],
+    ["Errored sessions", (v) => v.errors],
+    ["Observations", (v) => Object.entries(v.observations_by_kind).map(([k, n]) => `${k} ${n}`).join(", ") || "—"],
+  ];
+  return `<div class="panel"><strong>Metrics</strong> <span class="muted">(computed in code)</span>
+    <table><tr><th></th><th><span class="v A">A</span></th><th><span class="v B">B</span></th></tr>
+    ${rows.map(([l, f]) => `<tr><td>${l}</td><td>${esc(f(m.A))}</td><td>${esc(f(m.B))}</td></tr>`).join("")}</table></div>`;
+}
+
+function verdict(ev, run) {
+  if (!ev) {
+    const msg = { evaluating: "Evaluator is reviewing the sessions…", running: "Sessions in progress. The verdict appears when they finish.",
+      starting: "Building the sandbox image and baseline snapshot…", cancelled: "Run cancelled.", failed: `Run failed: ${esc(run.error)}` }[run.status] || esc(run.error || "");
+    return `<div class="panel verdict"><strong>Verdict</strong><p class="muted">${msg}</p></div>`;
+  }
+  const cites = (list) => list.map((c) => `<span class="cite" data-cite="${esc(c)}">${esc(c)}</span>`).join("");
+  return `<div class="panel verdict">
+    <div class="row"><strong>Verdict</strong><span class="chip">confidence: ${esc(ev.confidence)}</span>
+      ${run.evaluator_tokens ? `<span class="muted">evaluator ${run.evaluator_tokens.input.toLocaleString()} in / ${run.evaluator_tokens.output.toLocaleString()} out tokens</span>` : ""}</div>
+    <h2>${ev.winner === "no clear winner" ? "No clear winner" : `Variant <span class="v ${ev.winner}">${ev.winner}</span> performed better`}</h2>
+    <p><strong>${esc(ev.headline)}</strong></p><p>${esc(ev.reasoning)}</p>
+    ${ev.issues.length ? `<strong>Issues</strong>${ev.issues.map((i) => `<div class="issue">
+      <span class="v ${i.variant === "both" ? "" : i.variant}" style="${i.variant === "both" ? "background:var(--muted)" : ""}">${esc(i.variant)}</span>
+      <strong>${esc(i.title)}</strong> <span class="chip">severity ${i.severity}</span>
+      <span class="muted">${esc(i.affected_personas.join(", "))}</span><br>${cites(i.evidence)}</div>`).join("")}` : ""}
+    ${ev.segment_notes.length ? `<p><strong>Segments</strong></p><ul>${ev.segment_notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
+    ${ev.caveats.length ? `<p><strong>Caveats</strong></p><ul>${ev.caveats.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
+  </div>`;
+}
+
+function render(run) {
+  lastData = run;
+  const done = run.sessions.filter((s) => s?.status === "finished").length;
+  const toks = run.sessions.reduce((a, s) => a + (s?.input_tokens || 0) + (s?.output_tokens || 0), 0);
+  $("#runStatus").innerHTML = `<span class="chip ${run.live ? "live" : ""}">${esc(run.status)}</span>
+    <span class="muted">${done}/${run.sessions.length} sessions · model ${esc(run.model)} · ${toks.toLocaleString()} agent tokens</span>`;
+  $("#cancelBtn").disabled = !run.live;
+  const repeats = run.config.repeats;
+  $("#summary").innerHTML = `<div class="grid2">${verdict(run.evaluation, run)}${metricsTable(run.metrics)}</div>
+    ${repeats < 3 ? `<p class="notice">${repeats} repeat(s) per persona and variant. LLM runs vary a lot, so treat this as a directional signal; use 3+ repeats before trusting a winner.</p>` : ""}`;
+  const pairs = {};
+  run.sessions.forEach((s) => { if (s) (pairs[`${s.persona.id}-r${s.repeat}`] ||= {})[s.variant] = s; });
+  $("#pairs").innerHTML = Object.values(pairs).map((p) => `<div class="pair">${sessionCard(p.A)}${sessionCard(p.B)}</div>`).join("");
+}
+
+async function showRun(id) {
+  currentRun = id;
+  clearTimeout(pollTimer);
+  try {
+    const run = await api(`/api/runs/${encodeURIComponent(id)}`);
+    if (currentRun !== id) return;
+    render(run);
+    if (run.live) pollTimer = setTimeout(() => showRun(id), 1500);
+    else if (run.status !== lastStatus[id]) { lastStatus[id] = run.status; loadRuns(id); }
+  } catch (e) { $("#runStatus").textContent = e.message; }
+}
+const lastStatus = {};
+
+$("#runPick").onchange = (e) => { selected = {}; showRun(e.target.value); };
+$("#startBtn").onclick = async () => {
+  const persona_ids = [...document.querySelectorAll("#personaPicks input:checked")].map((i) => i.value);
+  $("#startBtn").disabled = true; $("#startMsg").textContent = "starting…";
+  try {
+    const { run_id } = await api("/api/runs", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ persona_ids, repeats: +$("#repeats").value, max_parallel: +$("#parallel").value }) });
+    $("#startMsg").textContent = ""; selected = {};
+    await loadRuns(run_id);
+  } catch (e) { $("#startMsg").textContent = e.message; }
+  $("#startBtn").disabled = false;
+};
+$("#cancelBtn").onclick = async () => { if (currentRun) await api(`/api/runs/${encodeURIComponent(currentRun)}/cancel`, { method: "POST" }).catch(() => {}); };
+
+document.addEventListener("click", (e) => {
+  const ev = e.target.closest(".ev[data-sid]");
+  if (ev) { selected[ev.dataset.sid] = +ev.dataset.idx; if (lastData) render(lastData); return; }
+  const cite = e.target.closest("[data-cite]");
+  if (cite) {
+    const [sid, idx] = cite.dataset.cite.split("#");
+    selected[sid] = +idx; if (lastData) render(lastData);
+    document.querySelector(`.ev[data-sid="${CSS.escape(sid)}"]`)?.closest(".card")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  if (e.target.matches("img[data-full]")) { $("#lightbox img").src = e.target.src; $("#lightbox").style.display = "flex"; return; }
+  if (e.target.closest("#lightbox")) $("#lightbox").style.display = "none";
+});
+
+loadPersonas();
+loadRuns();
+</script>
+</body>
+</html>
