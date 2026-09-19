@@ -37,7 +37,7 @@ def session_id_for(persona: Persona, task: TestTask, repeat: int) -> str:
 
 
 async def run_session(
-    persona: Persona, task: TestTask, repeat: int = 0, sink: EventSink | None = None, timeout_s: float = SESSION_TIMEOUT_S
+    persona: Persona, task: TestTask, repeat: int = 0, sink: EventSink | None = None, timeout_s: float = SESSION_TIMEOUT_S, control=None
 ) -> tuple[SessionReport, list[bytes], bytes | None]:
     """Run one persona against one variant in a fresh browser. Returns the report, one screenshot per step, and a webm recording."""
     session_id = session_id_for(persona, task, repeat)
@@ -53,11 +53,11 @@ async def run_session(
         if url.startswith("demo://"):
             server, base = _serve_demo_site()
             url = f"{base}/{url.removeprefix('demo://')}/"
-        browser = BrowserSession(persona.device)
+        browser = BrowserSession(persona.device, persona.viewport)
         async with browser:
             await browser.goto(url)
             first = await browser.screenshot()
-            deps = SessionDeps(browser=browser, persona=persona, task=task, recorder=recorder, session_id=session_id, sink=sink)
+            deps = SessionDeps(browser=browser, persona=persona, task=task, recorder=recorder, session_id=session_id, sink=sink, control=control)
             step = recorder.add("open", {"url": task.url}, "", browser.url, first)
             await deps.emit({"type": "step", "step": step.model_dump(), "image": first, "actions_left": deps.actions_left})
             prompt: list = ["You have just opened the site. This is your screen:", BinaryContent(data=first, media_type="image/jpeg")]

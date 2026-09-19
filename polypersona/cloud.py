@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from .models import EvaluatorReport, SessionReport, VariantMetrics
 from .orchestrator import Result, RunConfig, judge, plan, run_on_modal, session_ids
 from .personas import DEFAULT_PERSONAS, generate_personas
+from .population import personas_from_rows
 
 
 class LoginBody(BaseModel):
@@ -35,6 +36,16 @@ class GenerateBody(BaseModel):
 
 class AskBody(BaseModel):
     question: str
+
+
+class RowsBody(BaseModel):
+    rows: list[dict[str, str]]
+    row_numbers: list[int] | None = None  # 1-based positions in the uploaded file
+    filename: str = "upload"
+
+
+class GuideBody(BaseModel):
+    text: str
 
 
 async def _index_update(store, run_id: str, **fields) -> None:
@@ -55,7 +66,7 @@ async def execute(run_id: str, config_json: str, store, run_session_remote) -> N
         jobs = await plan(config)
         board = LiveBoard(DictBackend(store, run_id), run_id, jobs, session_ids(jobs), "on Modal", config.model_dump())
         await board.flush()
-        await _index_update(store, run_id, status="running", sessions=len(jobs))
+        await _index_update(store, run_id, status="running", sessions=len(jobs), personas=sorted({p.name for p, _, _ in jobs}), variants=sorted({t.variant_id for _, t, _ in jobs}))
 
         async def on_result(result: Result) -> None:
             report, _, video = result
@@ -64,10 +75,15 @@ async def execute(run_id: str, config_json: str, store, run_session_remote) -> N
                 await store.put.aio(f"{run_id}/{report.session_id}/video", video)
             await board.session_done(report, has_video=bool(video))
 
-        results = await run_on_modal(jobs, board, on_result, run_session_remote)
+        results = await run_on_modal(jobs, board, on_result, run_session_remote, run_id)
         metrics, verdict, tokens = await judge(results, board)
         total = sum(r.input_tokens + r.output_tokens for r, _, _ in results) + sum(tokens.values())
         await board.set_status("finished", metrics=[m.model_dump() for m in metrics], verdict=verdict.model_dump() if verdict else None, tokens={**tokens, "total": total})
+        surveys = [r.exit_survey for r, _, _ in results if r.exit_survey]
+        await _index_update(
+            store, run_id, completed=sum(r.outcome == "completed" for r, _, _ in results),
+            sentiment=round(sum(s.ease + s.trust for s in surveys) / (10 * len(surveys)), 2) if surveys else None,
+        )
         await _index_update(store, run_id, status="finished", winner=verdict.winner if verdict else None, confidence=verdict.confidence if verdict else None, tokens=total)
     except Exception as exc:
         message = f"{type(exc).__name__}: {exc}"
@@ -142,6 +158,14 @@ def create_api(store, run_experiment):
     async def generate(body: GenerateBody) -> list[dict]:
         return [p.model_dump() for p in await generate_personas(body.audience, min(body.n, 8))]
 
+    @api.post("/api/personas/from-rows", dependencies=[Depends(authorised)])
+    async def from_rows(body: RowsBody) -> dict:
+        """Personas from rows of customer data. Known columns are mapped in code; anything else is personified by Gemini."""
+        if not body.rows:
+            raise HTTPException(422, "no rows")
+        personas, method = await personas_from_rows(body.rows, body.row_numbers, body.filename[:80])
+        return {"method": method, "personas": [p.model_dump() for p in personas]}
+
     @api.get("/api/runs")
     async def list_runs() -> list[dict]:
         return await store.get.aio("index", [])
@@ -155,9 +179,10 @@ def create_api(store, run_experiment):
         await store.put.aio(quota_key, used + 1)
         config.repeats = max(1, min(config.repeats, 3))
         config.personas = max(1, min(config.personas, 6))
+        config.name = (config.name or "").strip()[:80] or None
         run_id = time.strftime("%Y%m%d-%H%M%S-") + secrets.token_hex(2)
         await store.put.aio(f"{run_id}/state", {"run_id": run_id, "status": "starting", "created_at": time.time(), "config": config.model_dump(), "sessions": {}})
-        await _index_update(store, run_id, status="starting", created_at=time.time(), config=config.model_dump(), started_by=user)
+        await _index_update(store, run_id, status="starting", created_at=time.time(), config=config.model_dump(), started_by=user, name=config.name)
         await run_experiment.spawn.aio(run_id, config.model_dump_json())
         return {"run_id": run_id}
 
@@ -194,6 +219,26 @@ def create_api(store, run_experiment):
             headers["Content-Range"] = f"bytes {start}-{end}/{len(data)}"
             return Response(data[start : end + 1], status_code=206, media_type="video/webm", headers=headers)
         return Response(data, media_type="video/webm", headers=headers)
+
+    async def _control(run_id: str, session_id: str, message: dict) -> dict:
+        session = (await state_of(run_id))["sessions"].get(session_id)
+        if session is None:
+            raise HTTPException(404, "unknown agent")
+        if session["status"] == "finished":
+            raise HTTPException(409, "this agent has already finished")
+        await store.put.aio(f"{run_id}/{session_id}/control", message)  # the agent picks it up after its next action
+        return {"ok": True}
+
+    @api.post("/api/runs/{run_id}/sessions/{session_id}/guide", dependencies=[Depends(authorised)])
+    async def guide(run_id: str, session_id: str, body: GuideBody) -> dict:
+        text = body.text.strip()[:300]
+        if not text:
+            raise HTTPException(422, "say what the agent should try")
+        return await _control(run_id, session_id, {"guide": text})
+
+    @api.post("/api/runs/{run_id}/sessions/{session_id}/stop", dependencies=[Depends(authorised)])
+    async def stop(run_id: str, session_id: str) -> dict:
+        return await _control(run_id, session_id, {"stop": True})
 
     @api.post("/api/runs/{run_id}/ask", dependencies=[Depends(authorised)])
     async def ask(run_id: str, body: AskBody) -> dict:

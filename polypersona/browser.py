@@ -56,8 +56,14 @@ MAX_PAGE_TEXT = 2500
 class BrowserSession:
     """One isolated headless browser. All coordinates are on the 0-1000 grid."""
 
-    def __init__(self, device: str = "desktop"):
+    def __init__(self, device: str = "desktop", viewport: str | None = None):
         self.width, self.height = VIEWPORTS[device]
+        if viewport:  # a customer's real screen, kept within sizes the model can point at accurately
+            try:
+                w, h = (int(v) for v in viewport.lower().split("x"))
+                self.width, self.height = max(360, min(w, 1440)), max(600, min(h, 900))
+            except ValueError:
+                pass
         self.mobile = device == "mobile"
         self.headed = os.environ.get("POLYPERSONA_HEADED") == "1"
         self._pw: Playwright | None = None
