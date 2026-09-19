@@ -79,7 +79,8 @@ If your API URL differs from the default, start the UI with
 
 Then in the browser:
 1. **Sign in** with an account from `POLYPERSONA_USERS`.
-2. **New test**: choose what to compare, who tests it, and a name. Press **Start test**.
+2. **New test**: choose **One website** (opinions and suggested improvements) or **Compare two variants** (A/B),
+   enter the URL or URLs, what people should try to do, optionally what you are trying to improve, and who tests it. Press **Start test**.
 3. **Live** tab: watch every agent. Click one to see its screen, its thinking, and to guide or stop it.
 4. **Results** tab: verdict, metrics, issues with screenshot evidence, and questions to the evaluator.
 5. **Personas**: upload a customer CSV (or describe an audience) to create your own panel.
@@ -96,7 +97,7 @@ npx wrangler pages deploy dist --project-name polypersona --branch main --force 
 ## Costs and limits
 
 - A session uses roughly 100k to 200k Gemini tokens. Three personas on two variants is about 900k tokens and 3 minutes.
-- The API caps a test at 10 personas and 3 repeats, and each account at 12 tests a day.
+- The API caps a test at 10 personas and 3 repeats. There is no daily limit unless you set `POLYPERSONA_DAILY_RUNS`.
 - Viewing tests needs no sign in at the API level. Starting tests, guiding agents, asking the evaluator and creating personas do.
 
 ## Pydantic AI Gateway, rule and guardrail (hackathon)
@@ -190,16 +191,18 @@ uv run modal deploy modal_app.py
 
 #### A. See the rule change the personas' feedback (PolyPersona web app)
 
-1. **Sign in**, then choose **New test**. Compare the demo shop's variants **b** and **c**, with the 3
-   built-in personas, 1 repeat. Press **Start test**.
-2. **Live tab:** click any agent, for example Dev on variant b. Watch its observations appear as it
-   hits the popup, the account wall, the "Error 422" and the late fee.
+The web app tests real sites only, so use any two URLs. These two are a ready-made pair:
+`https://saas-platform-variant-a.vercel.app/` (pricing first) and `https://saas-platform-variant-b.vercel.app/` (live demo first).
+
+1. **Sign in**, then choose **New test** and **Compare two variants**. Enter the two URLs, a goal such as
+   *"You have a few minutes to check out DataFlow for your team. If it convinces you, sign up. If not, leave."*,
+   success text `Payment successful|Account created`, the 3 built-in personas, 1 repeat. Press **Start test**.
+2. **Live tab:** click any agent and watch its observations appear.
    - **Rule on:** every observation starts with the exact on-screen text in quotes, then " — ", for example
-     `"Error 422" — raw HTTP status code shown below phone field with no explanation…`. The agent's
-     reasoning under each action is short (about 5 words).
-   - **Rule off:** the same problems are described in free-form prose, for example
-     `Form returned raw 'Error 422' without explaining what field…`.
-3. **Results tab:** the verdict and issues are built from those observations. With the rule on,
+     `"Contact Sales" — opens a credit card checkout instead of a sales form.` The agent's reasoning
+     under each action is short.
+   - **Rule off:** the same problems are described in free-form prose.
+3. **Results tab:** the verdict, issues and suggestions are built from those observations. With the rule on,
    issues name the exact button or message, so you can find each one on the page.
 4. **Compare:** in Logfire, disable the rule (Gateway → Optimizations → UX evidence protocol →
    disable), start the *same* test again, and compare the two tests' observations. Nothing in the
@@ -207,9 +210,13 @@ uv run modal deploy modal_app.py
 
 #### B. See the card number stay away from the model (PolyPersona web app)
 
-In the Live view, open an agent at the checkout step. The card field the agent typed shows
-`{card number}` in its step list, while the checkout still completes: the browser tool fills in the
-real card, so the model never handles it. The guardrail is the second layer; section D shows it firing.
+1. **New test → One website**, URL `https://saas-platform-variant-a.vercel.app/`, goal *"Your manager has
+   approved DataFlow. Buy the Starter plan with the company card and your work email."*, success text
+   `Payment successful`, one persona. Press **Start test**.
+2. Open the agent. In its event log the card field shows `{card number}` and `{card CVC}`, yet the last
+   step reads *the site showed a message: Payment successful! Welcome aboard.* The browser tool fills
+   in the real card, so the model never handles it, and the digits are not stored with the test.
+   The guardrail is the second layer; section D shows it firing.
 
 #### C. See the rule being applied (Logfire)
 
@@ -287,6 +294,20 @@ and `{card CVC}`, never the digits.
 
 **4. In Logfire:** search `persona session dev-b-0` and open one trace per run. Our spans are recorded
 before the Gateway, so compare the model's *outputs* (the observation format), not the prompts.
+
+## Sites behind Cloudflare or other bot protection
+
+The agents are automated browsers, so bot protection will challenge them, and PolyPersona does not try to
+evade it. Let them in on purpose instead:
+
+1. In **New test → Advanced**, set an access header, for example `x-polypersona-key` with a secret value you choose.
+2. On your site, add a rule that skips the challenge when that header matches. In Cloudflare:
+   **Security → WAF → Custom rules**, expression `http.request.headers["x-polypersona-key"][0] eq "<your secret>"`,
+   action **Skip** (managed challenge, Bot Fight Mode, rate limiting as needed).
+3. For a Turnstile widget inside a form, use Cloudflare's test site key on staging.
+
+The header is sent only to the site under test and its subdomains, never to third parties, and its value
+is never stored with the test.
 
 ## Repository map
 
