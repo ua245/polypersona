@@ -115,7 +115,7 @@ export function PatienceBar({ left, total }: { left: number; total: number }) {
 export function stepLabel(step: Step): string {
   const verb = { open: 'open', click: 'click', type_text: 'type', scroll: `scroll ${step.args.direction ?? ''}`, press_key: `press ${step.args.key ?? ''}`, go_back: 'back' }[step.action] ?? step.action;
   const text = step.args.text ? ` “${step.args.text}”` : '';
-  return `${verb.trim()}${text}${step.note ? ` — ${step.note}` : ''}`;
+  return `${verb.trim()}${text}${step.note ? ` · ${step.note}` : ''}`;
 }
 
 /**

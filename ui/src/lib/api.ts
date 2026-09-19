@@ -20,6 +20,9 @@ export interface Persona {
   patience_steps: number;
   device: Device;
   reading_style: 'skims' | 'reads_everything';
+  viewport?: string | null; // "WIDTHxHEIGHT" from customer data
+  details?: Record<string, string>; // extra facts, e.g. past purchases
+  source?: string | null; // e.g. "customers.csv row 14"
 }
 
 export interface Step {
@@ -32,6 +35,8 @@ export interface Step {
   url: string;
   ts: number; // unix seconds
 }
+
+export interface Control { kind: 'guide' | 'stop'; text: string; step_idx: number } // what an observer told this agent, and after which step
 
 export interface Observation { step_idx: number; kind: ObservationKind; severity: number; text: string }
 
@@ -60,6 +65,9 @@ export interface SessionState {
   outcome: Outcome | null;
   steps: Step[];
   observations: Observation[];
+  controls?: Control[];
+  viewport?: string | null;
+  source?: string | null;
   actions_left: number;
   exit_survey: ExitSurvey | null;
   has_video: boolean;
@@ -105,6 +113,7 @@ export interface Verdict {
 }
 
 export interface RunConfig {
+  name?: string | null; // what the person called this test
   persona_ids?: string[] | null; // built-in personas: "margaret" | "dev" | "sofia"
   custom_personas?: Persona[] | null; // takes precedence over persona_ids
   variants?: string[]; // demo shop: "a" clean, "b" dark patterns, "c" plausible redesign
@@ -138,6 +147,12 @@ export interface RunSummary {
   confidence?: string | null;
   tokens?: number;
   config?: RunConfig;
+  name?: string | null;
+  personas?: string[];
+  variants?: string[];
+  completed?: number; // sessions that reached the goal
+  sentiment?: number | null; // 0-1
+  started_by?: string;
 }
 
 // ---------- session: sign in with a username and password, the API returns a signed token ----------
@@ -179,6 +194,16 @@ export async function signIn(username: string, password: string): Promise<string
 export const startRun = (config: RunConfig) => request<{ run_id: string }>('/api/runs', { method: 'POST', body: JSON.stringify(config), auth: true });
 export const askRun = (runId: string, question: string) => request<{ answer: string }>(`/api/runs/${runId}/ask`, { method: 'POST', body: JSON.stringify({ question }), auth: true });
 export const generatePersonas = (audience: string, n: number) => request<Persona[]>('/api/personas/generate', { method: 'POST', body: JSON.stringify({ audience, n }), auth: true });
+
+/** Personas from rows of customer data. `method` says whether columns were mapped in code or personified by Gemini. */
+export const personasFromRows = (rows: Record<string, string>[], rowNumbers: number[], filename: string) =>
+  request<{ method: 'mapped' | 'personified'; personas: Persona[] }>('/api/personas/from-rows', { method: 'POST', body: JSON.stringify({ rows, row_numbers: rowNumbers, filename }), auth: true });
+/** Suggest something to a running agent. It reads it after its next action and stays in character. */
+export const guideAgent = (runId: string, sessionId: string, text: string) =>
+  request<{ ok: boolean }>(`/api/runs/${runId}/sessions/${sessionId}/guide`, { method: 'POST', body: JSON.stringify({ text }), auth: true });
+/** End a running agent's session. It stops after its next action and answers the exit survey. */
+export const stopAgent = (runId: string, sessionId: string) =>
+  request<{ ok: boolean }>(`/api/runs/${runId}/sessions/${sessionId}/stop`, { method: 'POST', auth: true });
 
 export const shotUrl = (runId: string, sessionId: string, idx: number) => `${API_URL}/api/runs/${runId}/sessions/${sessionId}/shots/${idx}.jpg`;
 export const videoUrl = (runId: string, sessionId: string) => `${API_URL}/api/runs/${runId}/sessions/${sessionId}/video`;
@@ -242,5 +267,5 @@ export function useSelectedRunId(): string | null {
 export const sessionList = (run: RunState | null): SessionState[] =>
   run ? Object.values(run.sessions).sort((a, b) => a.persona_id.localeCompare(b.persona_id) || a.repeat - b.repeat || a.variant.localeCompare(b.variant)) : [];
 
-export const fmtTokens = (n?: number | null) => (n == null ? '–' : n >= 1000 ? `${(n / 1000).toFixed(n >= 100000 ? 0 : 1)}k` : String(n));
+export const fmtTokens = (n?: number | null) => (n == null ? 'n/a' : n >= 1000 ? `${(n / 1000).toFixed(n >= 100000 ? 0 : 1)}k` : String(n));
 export const fmtTime = (unix?: number) => (unix ? new Date(unix * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '');

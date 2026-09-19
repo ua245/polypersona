@@ -1,7 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router';
-import { fmtTokens, sessionList, useRun, useSelectedRunId, videoUrl, type ExitSurvey, type Observation, type SessionState, type Step } from '../lib/api';
-import { C, Empty, KindTag, Page, PatienceBar, RunBar, Screenshot, SectionLabel, SessionTag, Tag, stepLabel } from '../lib/ui';
+import { ApiError, fmtTokens, guideAgent, sessionList, stopAgent, useRun, useSelectedRunId, videoUrl, type ExitSurvey, type Observation, type SessionState, type Step } from '../lib/api';
+import { STATE_LABEL, STATE_TONE, agentPath, agentState, avatarColor, initials, stageOf, testPath } from '../lib/derive';
+import { C, Empty, KIND_TONE, KindTag, Page, PatienceBar, Screenshot, SectionLabel, SessionTag, Tag, stepLabel, useTokenGate } from '../lib/ui';
+import { orderedStages, stageVisits } from './test/live/stages';
+
+const TONE_COLOR = { muted: C.muted2, green: C.green, yellow: C.yellow, blue: C.blue, red: C.red } as const;
+const OUTCOME_EVENT = { completed: 'Reached the goal', gave_up: 'Gave up on the task', out_of_steps: 'Ran out of patience', error: 'The session crashed' } as const;
+
+/** One line in the live inspector: a browser action, something the persona noted, or how the session ended. */
+interface LogEvent { key: string; ts: number; stepIdx: number; color: string; text: string; tag?: string }
+
+function CheckIcon({ color }: { color: string }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true" focusable="false" style={{ flexShrink: 0 }}>
+      <circle cx="10" cy="10" r="7.5" fill="none" stroke={color} strokeWidth="1.6" />
+      <path d="M6.6 10.2l2.3 2.3 4.5-4.9" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** The shared step label, with its dash swapped for a separator (no dashes in user-facing copy). */
+const actionLabel = (s: Step): string => stepLabel(s).replace(' — ', ' · ');
 
 const isDeadClick = (s: Step) => s.action === 'click' && !s.changed;
 
@@ -95,11 +115,11 @@ function SurveyCard({ survey, session }: { survey: ExitSurvey; session: SessionS
 }
 
 export default function AgentDetail() {
-  const { id = '' } = useParams();
+  const { id = '', runId: routeRunId } = useParams();
   const [params] = useSearchParams();
   const location = useLocation();
   const fallbackRunId = useSelectedRunId();
-  const runId = params.get('run') ?? fallbackRunId;
+  const runId = routeRunId ?? params.get('run') ?? fallbackRunId;
   const { run, error } = useRun(runId);
   const session: SessionState | null = run?.sessions?.[id] ?? null;
 
@@ -162,6 +182,37 @@ export default function AgentDetail() {
   }, [observations]);
   const obsNewestFirst = useMemo(() => observations.map((o, i) => ({ o, i })).sort((a, b) => b.o.step_idx - a.o.step_idx || b.i - a.i), [observations]);
   const deadClicks = steps.filter(isDeadClick).length;
+  // Guide / stop: both need a signed-in user and only make sense while the agent is still working.
+  const gate = useTokenGate();
+  const [guideText, setGuideText] = useState('');
+  const [busy, setBusy] = useState<'guide' | 'stop' | null>(null);
+  const [notice, setNotice] = useState('');
+  const [controlError, setControlError] = useState('');
+  const [confirmStop, setConfirmStop] = useState(false);
+  useEffect(() => { setGuideText(''); setNotice(''); setControlError(''); setConfirmStop(false); }, [id]);
+  const explain = (e: unknown): string =>
+    e instanceof ApiError && e.status === 409 ? 'This agent has already finished, so it can no longer be guided or stopped.'
+      : e instanceof ApiError ? `The server refused this: ${e.message}` : 'Could not reach the server. Try again.';
+  const sendGuide = () => {
+    const text = guideText.trim();
+    if (!runId || !text) return;
+    gate.guard(async () => {
+      setBusy('guide'); setControlError(''); setNotice('');
+      try { await guideAgent(runId, id, text); setGuideText(''); setNotice('Sent. It will see this after its next action.'); }
+      catch (e) { if (!gate.handleAuthError(e, sendGuide)) setControlError(explain(e)); }
+      finally { setBusy(null); }
+    });
+  };
+  const sendStop = () => {
+    if (!runId) return;
+    gate.guard(async () => {
+      setBusy('stop'); setControlError(''); setNotice('');
+      try { await stopAgent(runId, id); setNotice('Stopping. The agent ends its session after its next action, then answers the exit survey.'); }
+      catch (e) { if (!gate.handleAuthError(e, sendStop)) setControlError(explain(e)); }
+      finally { setBusy(null); setConfirmStop(false); }
+    });
+  };
+
   const siblings = useMemo(
     () => (session ? sessionList(run).filter((s) => s.persona_id === session.persona_id && s.repeat === session.repeat && s.session_id !== session.session_id) : []),
     [run, session],
@@ -170,12 +221,12 @@ export default function AgentDetail() {
   // Previous / next agent in the run, so you can walk through all of them without going back to the grid.
   const ordered = sessionList(run);
   const at = session ? ordered.findIndex((s) => s.session_id === session.session_id) : -1;
-  const agentLink = (s: { session_id: string }) => `/populations/${encodeURIComponent(s.session_id)}?run=${encodeURIComponent(runId ?? '')}`;
+  const agentLink = (s: { session_id: string }) => agentPath(runId ?? '', s.session_id);
   const prevAgent = at > 0 ? ordered[at - 1] : null;
   const nextAgent = at >= 0 && at < ordered.length - 1 ? ordered[at + 1] : null;
 
-  const backTo = `/populations${runId ? `?run=${encodeURIComponent(runId)}` : ''}`;
-  const back = <Link to={backTo} className="btn-ghost" style={{ textDecoration: 'none', paddingLeft: 0 }}>← All agents</Link>;
+  const backTo = runId ? testPath(runId) : '/workspace';
+  const back = <Link to={backTo} className="btn-ghost" style={{ textDecoration: 'none', paddingLeft: 0 }}>← Back to the test</Link>;
 
   if (!runId || (!run && !error)) {
     return <Page title="Agent" subtitle={back}><div className="card" aria-live="polite" style={{ padding: 32, color: C.muted2, fontSize: 13 }}>Loading agent…</div></Page>;
@@ -195,28 +246,74 @@ export default function AgentDetail() {
 
   const used = Math.max(0, session.patience - session.actions_left);
   const t0 = steps[0]?.ts ?? 0;
+  const state = agentState(session);
+  const stateColor = TONE_COLOR[STATE_TONE[state]];
+
+  // Live inspector: actions and observations in one stream, newest first.
+  const tsByIdx = new Map(steps.map((s) => [s.idx, s.ts]));
+  const events: LogEvent[] = [];
+  const controls = session.controls ?? [];
+  const firstIdx = steps[0]?.idx ?? 0;
+  const lastIdx = steps[lastPos]?.idx ?? 0;
+  steps.forEach((s) => {
+    events.push({ key: `s${s.idx}`, ts: s.ts, stepIdx: s.idx, color: s.changed ? C.green : C.yellow, text: `${actionLabel(s)}${s.changed ? '' : ' (nothing changed)'}` });
+    observations.forEach((o, i) => {
+      if (o.step_idx === s.idx) events.push({ key: `o${i}`, ts: s.ts, stepIdx: s.idx, color: TONE_COLOR[KIND_TONE[o.kind]], text: o.text, tag: `${o.kind} ${o.severity}` });
+    });
+    controls.forEach((c, i) => {
+      const after = Math.min(Math.max(c.step_idx, firstIdx), lastIdx); // a control sent before the first page loaded still shows
+      if (after === s.idx) events.push({ key: `c${i}`, ts: s.ts, stepIdx: s.idx, color: C.blue, text: c.kind === 'stop' ? 'You stopped this agent' : `You suggested: ${c.text}`, tag: 'observer' });
+    });
+  });
+  observations.forEach((o, i) => {
+    if (!tsByIdx.has(o.step_idx)) events.push({ key: `o${i}`, ts: steps[lastPos]?.ts ?? t0, stepIdx: o.step_idx, color: TONE_COLOR[KIND_TONE[o.kind]], text: o.text, tag: `${o.kind} ${o.severity}` });
+  });
+  if (session.outcome && steps.length) {
+    const end = steps[lastPos]!;
+    events.push({ key: 'end', ts: end.ts, stepIdx: end.idx, color: session.outcome === 'completed' ? C.blue : C.red, text: session.outcome === 'error' && session.error ? `${OUTCOME_EVENT.error}: ${session.error}` : OUTCOME_EVENT[session.outcome] });
+  }
+  events.reverse();
+
+  // Journey checklist: what this agent reached, and what others in the run reached that it did not.
+  const visits = stageVisits(session);
+  const reachedStages = new Set(visits.map((v) => v.stage));
+  const unreached = orderedStages(sessionList(run)).filter((st) => !reachedStages.has(st));
+  const lastStage = steps.length ? stageOf(steps[lastPos]!.url) : null;
+  const viewedStage = step ? stageOf(step.url) : null;
+  const alerts = observations.filter((o) => o.severity >= 4 && o.kind !== 'delight');
   const liveText = running
     ? (follow ? `Following live, step ${step?.idx ?? 0}` : `Paused on step ${step?.idx ?? 0} while the agent continues`)
     : session.status === 'queued' ? 'Waiting for a container' : `Session finished after ${Math.max(0, steps.length - 1)} actions`;
 
   return (
-    <Page
-      runBar={<RunBar run={run} active="agents" />}
-      title={session.persona}
-      subtitle={<span>variant {session.variant.toUpperCase()} · {session.device} · <span className="mono">{session.session_id}</span> in run <span className="mono">{run.run_id}</span></span>}
-      actions={
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+    <div style={{ maxWidth: 1360, margin: '0 auto', padding: '20px 24px 64px' }}>
+      <header style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 16px', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 12px', minWidth: 0 }}>
           {back}
+          <span aria-hidden="true" style={{ width: 32, height: 32, borderRadius: '50%', background: avatarColor(session.persona), color: '#fff', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{initials(session.persona)}</span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 10px' }}>
+              <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600, letterSpacing: '-0.01em' }}>{session.persona}</h1>
+              <span className="mono" style={{ fontSize: 12, color: C.muted }}>{session.session_id}</span>
+              <Tag tone={STATE_TONE[state]}>
+                <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: stateColor, animation: running ? 'pp-pulse 1.4s ease-in-out infinite' : undefined }} />
+                {STATE_LABEL[state]}
+              </Tag>
+            </div>
+            <div style={{ fontSize: 12, color: C.muted2, marginTop: 2 }}>Variant {session.variant.toUpperCase()} · {session.device} · {session.savviness} tech savviness</div>
+          </div>
+        </div>
+        <nav aria-label="Other agents" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           {prevAgent && <Link to={agentLink(prevAgent)} className="btn-ghost" style={{ textDecoration: 'none' }} title={`${prevAgent.persona}, variant ${prevAgent.variant.toUpperCase()}`}>‹ Previous agent</Link>}
           {nextAgent && <Link to={agentLink(nextAgent)} className="btn-ghost" style={{ textDecoration: 'none' }} title={`${nextAgent.persona}, variant ${nextAgent.variant.toUpperCase()}`}>Next agent ›</Link>}
           {siblings.map((s) => (
-            <Link key={s.session_id} to={`/populations/${encodeURIComponent(s.session_id)}?run=${encodeURIComponent(run.run_id)}`} className="btn-secondary" style={{ textDecoration: 'none' }}>
+            <Link key={s.session_id} to={agentPath(run.run_id, s.session_id)} className="btn-secondary" style={{ textDecoration: 'none' }}>
               Compare with variant {s.variant.toUpperCase()} →
             </Link>
           ))}
-        </div>
-      }
-    >
+        </nav>
+      </header>
+
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]" style={{ gap: 16, alignItems: 'start' }}>
         {/* ---------- main column ---------- */}
         <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -281,7 +378,7 @@ export default function AgentDetail() {
                     <button
                       key={s.idx} type="button" ref={on ? chipRef : undefined} aria-pressed={on} onClick={() => selectPos(i)}
                       aria-label={`Step ${s.idx}, ${shortAction(s)}${dead ? ', dead click' : ''}${hasObs ? ', has observations' : ''}`}
-                      title={stepLabel(s)}
+                      title={actionLabel(s)}
                       className="mono"
                       style={{
                         flexShrink: 0, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, cursor: 'pointer',
@@ -307,6 +404,79 @@ export default function AgentDetail() {
             </div>
           </div>
 
+          <section className="card" aria-labelledby="ad-journey" style={{ padding: 16 }}>
+            <SectionLabel>Journey · variant {session.variant.toUpperCase()}</SectionLabel>
+            <h2 id="ad-journey" style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 600, lineHeight: 1.4 }}>{session.goal || 'Complete the task on this site'}</h2>
+            {visits.length === 0 && <div style={{ fontSize: 13, color: C.muted }}>The agent has not loaded the first page yet.</div>}
+            <ol style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+              {visits.map((v, i) => {
+                const isLast = v.stage === lastStage;
+                const stopped = isLast && session.outcome != null && session.outcome !== 'completed';
+                const now = isLast && session.outcome == null;
+                const color = stopped ? C.red : now ? C.yellow : C.green;
+                const viewing = v.stage === viewedStage;
+                return (
+                  <li key={v.stage} style={{ borderTop: i === 0 ? 'none' : `1px solid ${C.border}` }}>
+                    <button type="button" onClick={() => selectIdx(v.firstIdx)} aria-current={viewing ? 'step' : undefined} title={`Show step ${v.firstIdx}, where the agent first reached ${v.stage}`} style={{
+                      display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 8px', border: 'none', borderRadius: 4, cursor: 'pointer', textAlign: 'left',
+                      background: viewing ? 'rgba(74,222,128,0.06)' : 'transparent', color: C.text, fontFamily: 'inherit', fontSize: 13,
+                    }}>
+                      {now
+                        ? <span aria-hidden="true" style={{ width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><span className="dot-yellow" style={{ animation: 'pp-pulse 1.4s ease-in-out infinite' }} /></span>
+                        : stopped
+                          ? <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true" focusable="false" style={{ flexShrink: 0 }}><circle cx="10" cy="10" r="7.5" fill="none" stroke={C.red} strokeWidth="1.6" /><path d="M7 7l6 6M13 7l-6 6" stroke={C.red} strokeWidth="1.6" strokeLinecap="round" /></svg>
+                          : <CheckIcon color={C.green} />}
+                      <span style={{ fontWeight: isLast ? 600 : 400, flex: 1, minWidth: 0 }}>
+                        {v.stage}
+                        {now && <span style={{ color, fontWeight: 400 }}> · here now</span>}
+                        {stopped && <span style={{ color, fontWeight: 400 }}> · stopped here, {session.outcome === 'gave_up' ? 'gave up' : session.outcome === 'out_of_steps' ? 'out of patience' : 'session crashed'}</span>}
+                        {isLast && session.outcome === 'completed' && <span style={{ color: C.blue, fontWeight: 400 }}> · goal reached</span>}
+                      </span>
+                      <span className="mono" style={{ fontSize: 11, color: v.noChange > 0 ? C.yellow : C.muted, whiteSpace: 'nowrap' }}>
+                        {v.actions} {v.actions === 1 ? 'action' : 'actions'}{v.noChange > 0 ? ` · ${v.noChange} did nothing` : ''}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+              {unreached.map((st) => (
+                <li key={st} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 8px', borderTop: `1px solid ${C.border}`, fontSize: 13, color: C.muted }}>
+                  <span aria-hidden="true" style={{ width: 16, height: 16, borderRadius: '50%', border: `1.5px dashed ${C.border2}`, flexShrink: 0 }} />
+                  <span style={{ flex: 1 }}>{st}</span>
+                  <span style={{ fontSize: 11 }}>not reached by this agent</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          {session.status !== 'finished' && (
+            <section className="card" aria-labelledby="ad-guide" style={{ padding: 16 }}>
+              <h2 id="ad-guide" style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>Guide this agent</h2>
+              <p style={{ margin: '4px 0 12px', fontSize: 12, lineHeight: 1.55, color: C.muted2 }}>
+                The agent reads your suggestion after its next action and decides, in character, whether to follow it. Stopping ends the session and it answers the exit survey.
+              </p>
+              <form onSubmit={(e) => { e.preventDefault(); sendGuide(); }} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <label htmlFor="ad-guide-input" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)' }}>Suggestion for {session.persona}</label>
+                <input
+                  id="ad-guide-input" className="input" maxLength={300} value={guideText} disabled={busy != null}
+                  onChange={(e) => { setGuideText(e.target.value); setNotice(''); setControlError(''); }}
+                  placeholder="Suggest something, e.g. Try checking out as a guest" style={{ flex: '1 1 260px', width: 'auto', minWidth: 0 }}
+                />
+                <button type="submit" className="btn-primary" disabled={busy != null || !guideText.trim()}>{busy === 'guide' ? 'Sending…' : 'Send suggestion'}</button>
+                <button
+                  type="button" className="btn-secondary" disabled={busy != null}
+                  onClick={() => (confirmStop ? sendStop() : setConfirmStop(true))} onBlur={() => setConfirmStop(false)}
+                  style={confirmStop ? { color: C.red, borderColor: 'rgba(248,113,113,0.5)' } : undefined}
+                >
+                  {busy === 'stop' ? 'Stopping…' : confirmStop ? 'Click again to stop' : 'Stop agent'}
+                </button>
+              </form>
+              <div aria-live="polite" style={{ minHeight: 18, marginTop: 8, fontSize: 12, lineHeight: 1.5 }}>
+                {controlError ? <span role="alert" style={{ color: C.red }}>{controlError}</span> : notice ? <span style={{ color: C.green }}>{notice}</span> : null}
+              </div>
+            </section>
+          )}
+
           {session.has_video && (
             <section className="card" aria-labelledby="ad-video" style={{ padding: 16 }}>
               <div id="ad-video"><SectionLabel>Screen recording</SectionLabel></div>
@@ -320,21 +490,71 @@ export default function AgentDetail() {
 
         {/* ---------- sidebar ---------- */}
         <aside style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <Card label="Persona" labelledBy="ad-persona">
-            <div style={{ fontSize: 15, fontWeight: 600 }}>{session.persona}</div>
-            {session.bio && <p style={{ margin: '6px 0 10px', fontSize: 13, color: C.muted2, lineHeight: 1.5 }}>{session.bio}</p>}
-            <Row k="Device">{session.device}</Row>
-            <Row k="Tech savviness">{session.savviness}</Row>
-            <Row k="Reading style">{session.reading_style === 'reads_everything' ? 'reads everything' : session.reading_style}</Row>
-            <Row k="Variant">{session.variant.toUpperCase()}</Row>
-            <Row k="Repeat">{session.repeat + 1}</Row>
-            {session.goal && (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 3 }}>Goal</div>
-                <div style={{ fontSize: 13, lineHeight: 1.5 }}>{session.goal}</div>
-              </div>
+          <section className="card" aria-labelledby="ad-inspector" style={{ padding: 16, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: running ? C.green : C.muted, animation: running ? 'pp-pulse 1.4s ease-in-out infinite' : undefined }} />
+              <h2 id="ad-inspector" style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Live inspector</h2>
+              <span className="mono" style={{ marginLeft: 'auto', fontSize: 11, color: C.muted }}>{steps.length} steps · newest first</span>
+            </div>
+            {events.length === 0 ? (
+              <div style={{ fontSize: 13, color: C.muted }}>Nothing logged yet. Each browser action appears here as it happens.</div>
+            ) : (
+              <ol aria-label="Event log" style={{ listStyle: 'none', margin: '0 -6px', padding: 0, maxHeight: 300, overflowY: 'auto' }}>
+                {events.map((e) => {
+                  const on = step?.idx === e.stepIdx;
+                  return (
+                    <li key={e.key}>
+                      <button type="button" onClick={() => selectIdx(e.stepIdx)} aria-current={on ? 'step' : undefined} title={`Show step ${e.stepIdx}`} style={{
+                        display: 'grid', gridTemplateColumns: '34px minmax(0,1fr)', gap: 8, width: '100%', padding: '4px 6px', border: 'none', borderRadius: 4, textAlign: 'left', cursor: 'pointer',
+                        background: on ? 'rgba(74,222,128,0.07)' : 'transparent', fontFamily: 'inherit', fontSize: 12, lineHeight: 1.45,
+                      }}>
+                        <span className="mono" style={{ fontSize: 10, color: C.muted, paddingTop: 2 }}>{fmtOffset(e.ts - t0)}</span>
+                        <span style={{ color: e.color, overflowWrap: 'anywhere' }}>
+                          {e.tag && <span className="mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em', marginRight: 6, opacity: 0.85 }}>{e.tag}</span>}
+                          {e.text}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </section>
+
+          <Card label={`Current thought · step ${step?.idx ?? 0}`} labelledBy="ad-thought">
+            {step ? (
+              <>
+                <div className="mono" style={{ fontSize: 12, color: C.muted2, marginBottom: 8, overflowWrap: 'anywhere' }}>{actionLabel(step)}</div>
+                {step.reasoning ? <Quote>{step.reasoning}</Quote> : <div style={{ fontSize: 13, color: C.muted }}>{step.action === 'open' ? 'The page has just loaded. The persona has not decided anything yet.' : 'No reasoning was recorded for this step.'}</div>}
+                {!step.changed && <div style={{ marginTop: 8 }}><Tag tone="red">nothing changed on the page</Tag></div>}
+              </>
+            ) : <div style={{ fontSize: 13, color: C.muted }}>The agent has not started yet.</div>}
+          </Card>
+
+          <Card label="Notable alerts" labelledBy="ad-alerts">
+            {alerts.length === 0 ? (
+              <div style={{ fontSize: 13, color: C.muted }}>Nothing serious so far.</div>
+            ) : (
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {alerts.map((o, i) => {
+                  const red = o.kind === 'bug';
+                  return (
+                    <li key={i}>
+                      <button type="button" onClick={() => selectIdx(o.step_idx)} title={`Show step ${o.step_idx}`} style={{
+                        display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', padding: '8px 10px', borderRadius: 6, fontFamily: 'inherit',
+                        background: red ? 'rgba(248,113,113,0.08)' : 'rgba(250,204,21,0.07)', border: `1px solid ${red ? 'rgba(248,113,113,0.3)' : 'rgba(250,204,21,0.28)'}`,
+                      }}>
+                        <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: red ? C.red : C.yellow }}>{o.kind[0]!.toUpperCase() + o.kind.slice(1)} · severity {o.severity} · step {o.step_idx}</span>
+                        <span style={{ display: 'block', fontSize: 12, lineHeight: 1.5, color: C.muted2, marginTop: 2 }}>{o.text}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </Card>
+
+          {session.exit_survey && <SurveyCard survey={session.exit_survey} session={session} />}
 
           <Card label="Status" labelledBy="ad-status">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -349,16 +569,6 @@ export default function AgentDetail() {
               {session.tokens != null && <Row k="Tokens">{fmtTokens(session.tokens)}</Row>}
             </div>
             {session.error && <div role="alert" className="mono" style={{ marginTop: 8, fontSize: 11, color: C.red, overflowWrap: 'anywhere', lineHeight: 1.5 }}>{session.error}</div>}
-          </Card>
-
-          <Card label={`Current thought · step ${step?.idx ?? 0}`} labelledBy="ad-thought">
-            {step ? (
-              <>
-                <div className="mono" style={{ fontSize: 12, color: C.muted2, marginBottom: 8, overflowWrap: 'anywhere' }}>{stepLabel(step)}</div>
-                {step.reasoning ? <Quote>{step.reasoning}</Quote> : <div style={{ fontSize: 13, color: C.muted }}>{step.action === 'open' ? 'The page has just loaded. The persona has not decided anything yet.' : 'No reasoning was recorded for this step.'}</div>}
-                {!step.changed && <div style={{ marginTop: 8 }}><Tag tone="red">nothing changed on the page</Tag></div>}
-              </>
-            ) : <div style={{ fontSize: 13, color: C.muted }}>The agent has not started yet.</div>}
           </Card>
 
           <Card label={`Observations · ${observations.length}`} labelledBy="ad-obs">
@@ -384,45 +594,24 @@ export default function AgentDetail() {
             )}
           </Card>
 
-          {session.exit_survey && <SurveyCard survey={session.exit_survey} session={session} />}
+          <Card label="Persona" labelledBy="ad-persona">
+            <div style={{ fontSize: 15, fontWeight: 600 }}>{session.persona}</div>
+            {session.bio && <p style={{ margin: '6px 0 10px', fontSize: 13, color: C.muted2, lineHeight: 1.5 }}>{session.bio}</p>}
+            <Row k="Device">{session.device}</Row>
+            <Row k="Tech savviness">{session.savviness}</Row>
+            <Row k="Reading style">{session.reading_style === 'reads_everything' ? 'reads everything' : session.reading_style}</Row>
+            <Row k="Variant">{session.variant.toUpperCase()}</Row>
+            <Row k="Repeat">{session.repeat + 1}</Row>
+            {session.goal && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 3 }}>Goal</div>
+                <div style={{ fontSize: 13, lineHeight: 1.5 }}>{session.goal}</div>
+              </div>
+            )}
+          </Card>
         </aside>
       </div>
-
-      {/* ---------- activity log ---------- */}
-      <section aria-labelledby="ad-log" style={{ marginTop: 32 }}>
-        <div id="ad-log"><SectionLabel>Activity log · {steps.length} steps</SectionLabel></div>
-        {steps.length === 0 ? (
-          <Empty title="Nothing logged yet">Each browser action appears here with the persona's reasoning.</Empty>
-        ) : (
-          <ol className="card" style={{ listStyle: 'none', margin: 0, padding: 0, overflow: 'hidden' }}>
-            {steps.map((s, i) => {
-              const on = i === pos; const dead = isDeadClick(s);
-              return (
-                <li key={s.idx} style={{ borderTop: i === 0 ? 'none' : `1px solid ${C.border}` }}>
-                  <button
-                    type="button" aria-pressed={on} onClick={() => selectIdx(s.idx)}
-                    style={{
-                      display: 'grid', gridTemplateColumns: '44px 28px minmax(0,1fr)', gap: 10, width: '100%', textAlign: 'left', cursor: 'pointer',
-                      padding: '10px 14px', border: 'none', borderLeft: `2px solid ${on ? C.green : 'transparent'}`, background: on ? 'rgba(74,222,128,0.05)' : 'transparent',
-                      color: C.text, fontFamily: 'inherit', fontSize: 13,
-                    }}
-                  >
-                    <span className="mono" style={{ fontSize: 11, color: C.muted, paddingTop: 2 }}>{fmtOffset(s.ts - t0)}</span>
-                    <span className="mono" style={{ fontSize: 11, color: on ? C.green : C.muted2, paddingTop: 2 }}>{s.idx}</span>
-                    <span style={{ minWidth: 0 }}>
-                      <span className="mono" style={{ display: 'block', fontSize: 12, color: dead ? C.red : C.text, overflowWrap: 'anywhere' }}>
-                        {stepLabel(s)}{dead ? ' (nothing changed)' : ''}
-                        {obsByStep.has(s.idx) && <span style={{ color: C.yellow }}> · {obsByStep.get(s.idx)} obs</span>}
-                      </span>
-                      {s.reasoning && <span style={{ display: 'block', color: C.muted2, marginTop: 3, lineHeight: 1.5 }}>{s.reasoning}</span>}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-        )}
-      </section>
-    </Page>
+      {gate.dialog}
+    </div>
   );
 }

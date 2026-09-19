@@ -1,7 +1,7 @@
-// Follow-up questions to the evaluator about one finished run.
+// Follow-up questions to the evaluator about one finished test. Adapted from the old insights page.
 import { useEffect, useId, useState, type ReactNode } from 'react';
-import { askRun } from '../../lib/api';
-import { C, useTokenGate } from '../../lib/ui';
+import { askRun } from '../../../lib/api';
+import { C, useTokenGate } from '../../../lib/ui';
 
 const EXAMPLES = [
   'Why did the mobile persona fail?',
@@ -30,7 +30,7 @@ export function AnswerText({ text }: { text: string }) {
         if (bullet) {
           return (
             <div key={i} style={{ display: 'flex', gap: 8, paddingLeft: 4 }}>
-              <span className="mono" style={{ color: C.muted, flexShrink: 0 }}>{/^\d/.test(bullet[1]) ? bullet[1] : '–'}</span>
+              <span className="mono" style={{ color: C.muted, flexShrink: 0 }}>{/^\d/.test(bullet[1]) ? bullet[1] : '•'}</span>
               <span>{inline(bullet[2])}</span>
             </div>
           );
@@ -82,11 +82,11 @@ export default function Ask({ runId, finished }: { runId: string; finished: bool
     <div className="card" style={{ padding: 16 }}>
       {dialog}
       <form onSubmit={(e) => { e.preventDefault(); ask(question); }}>
-        <label htmlFor={fieldId} style={{ fontSize: 13, fontWeight: 500 }}>Question about this run</label>
+        <label htmlFor={fieldId} style={{ fontSize: 13, fontWeight: 500 }}>Question about this test</label>
         <p style={{ margin: '4px 0 10px', fontSize: 12, color: C.muted }}>
           {finished
-            ? 'The evaluator answers from this run’s sessions, metrics and verdict. It needs the team token and usually takes 10 to 40 seconds.'
-            : 'Available once the run has finished: the evaluator needs every session and the computed metrics before it can answer.'}
+            ? 'The evaluator answers from this test’s sessions, metrics and verdict. You need to be signed in, and an answer usually takes 10 to 40 seconds.'
+            : 'Available once the test has finished: the evaluator needs every session and the computed metrics before it can answer.'}
         </p>
         <textarea
           id={fieldId}
@@ -101,7 +101,7 @@ export default function Ask({ runId, finished }: { runId: string; finished: bool
         />
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10, alignItems: 'center' }}>
           {EXAMPLES.map((ex) => (
-            <button key={ex} type="button" className="btn-secondary" disabled={disabled} onClick={() => { setQuestion(ex); ask(ex); }} style={{ fontSize: 12, padding: '5px 10px' }}>
+            <button key={ex} type="button" className="btn-secondary" disabled={disabled} onClick={() => { setQuestion(ex); ask(ex); }} style={{ fontSize: 12, padding: '5px 10px', textAlign: 'left' }}>
               {ex}
             </button>
           ))}

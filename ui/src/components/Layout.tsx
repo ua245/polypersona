@@ -27,10 +27,9 @@ function Nav({ isLanding }: { isLanding: boolean }) {
         <span style={{ color: '#e8eaf0', fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em' }}>PolyPersona</span>
       </NavLink>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, minWidth: 0, overflowX: 'auto', scrollbarWidth: 'none' }}>
-        <NavItem to="/workspace" label="Home" />
-        <NavItem to="/tools" label="New test" end />
-        <NavItem to="/populations" label="Agents" keepRun />
-        <NavItem to="/insights" label="Insights" keepRun />
+        <NavItem to="/workspace" label="Tests" also="/tests" />
+        <NavItem to="/new" label="New test" />
+        <NavItem to="/personas" label="Personas" />
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {isSignedIn() ? <UserMenu /> : (
@@ -54,18 +53,16 @@ function UserMenu() {
   );
 }
 
-function NavItem({ to, label, keepRun, end }: { to: string; label: string; keepRun?: boolean; end?: boolean }) {
-  // Agents and Insights stay on the run you are looking at; New test always opens a blank setup.
-  const run = new URLSearchParams(useLocation().search).get('run');
-  const target = keepRun && run ? `${to}?run=${encodeURIComponent(run)}` : to;
-  const watching = to === '/tools' && run != null; // /tools?run=… is the live monitor, not a new test
+function NavItem({ to, label, also }: { to: string; label: string; also?: string }) {
+  const { pathname } = useLocation();
+  const active = pathname === to || pathname.startsWith(`${to}/`) || (also != null && pathname.startsWith(also));
   return (
-    <NavLink to={target} end={end} style={({ isActive: matched }) => { const isActive = matched && !watching; return ({
-      color: isActive ? '#e8eaf0' : '#6b7280', textDecoration: 'none',
+    <NavLink to={to} aria-current={active ? 'page' : undefined} style={{
+      color: active ? '#e8eaf0' : '#6b7280', textDecoration: 'none',
       fontSize: 13, fontWeight: 500, padding: '6px 12px', borderRadius: 6, whiteSpace: 'nowrap',
-      background: isActive ? '#111318' : 'transparent',
+      background: active ? '#111318' : 'transparent',
       transition: 'color 0.15s, background 0.15s',
-    }); }}>{label}</NavLink>
+    }}>{label}</NavLink>
   );
 }
 

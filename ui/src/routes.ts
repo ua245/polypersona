@@ -1,16 +1,16 @@
 import { createBrowserRouter } from 'react-router';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
-import Workspace from './pages/Workspace';
-import PopulationNew from './pages/PopulationNew';
-import Populations from './pages/Populations';
-import AgentDetail from './pages/AgentDetail';
-import Tools from './pages/Tools';
-import Insights from './pages/Insights';
-import CustomerData from './pages/CustomerData';
-import PopulationsCustom from './pages/PopulationsCustom';
 import Login from './pages/Login';
+import Workspace from './pages/Workspace';
+import NewTest from './pages/NewTest';
+import Test from './pages/Test';
+import AgentDetail from './pages/AgentDetail';
+import Personas from './pages/Personas';
+import { LegacyAgent, LegacyRun } from './pages/Legacy';
 
+// The product has three places: your tests, a new test, and personas. A test is one page (Live and
+// Results tabs); an agent is a page under its test.
 export const router = createBrowserRouter([
   {
     Component: Layout,
@@ -18,13 +18,18 @@ export const router = createBrowserRouter([
       { index: true, Component: Landing },
       { path: 'login', Component: Login },
       { path: 'workspace', Component: Workspace },
-      { path: 'populations', Component: Populations },
-      { path: 'populations/new', Component: PopulationNew },
-      { path: 'populations/data', Component: CustomerData },
-      { path: 'populations/custom', Component: PopulationsCustom },
-      { path: 'populations/:id', Component: AgentDetail },
-      { path: 'tools', Component: Tools },
-      { path: 'insights', Component: Insights },
+      { path: 'new', Component: NewTest },
+      { path: 'tests/:runId', Component: Test },
+      { path: 'tests/:runId/agents/:id', Component: AgentDetail },
+      { path: 'personas', Component: Personas },
+      // Links from before the restructure keep working.
+      { path: 'tools', Component: LegacyRun },
+      { path: 'insights', Component: LegacyRun },
+      { path: 'populations', Component: LegacyRun },
+      { path: 'populations/new', Component: Personas },
+      { path: 'populations/custom', Component: Personas },
+      { path: 'populations/data', Component: Personas },
+      { path: 'populations/:id', Component: LegacyAgent },
     ],
   },
 ]);

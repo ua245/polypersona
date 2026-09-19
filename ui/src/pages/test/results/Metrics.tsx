@@ -1,6 +1,6 @@
 // Side-by-side variant metrics. Every number here is computed in code from the recorded sessions, not by a model.
-import { fmtTokens, type ObservationKind, type VariantMetrics } from '../../lib/api';
-import { C, KIND_TONE, Tag } from '../../lib/ui';
+import { fmtTokens, type ObservationKind, type VariantMetrics } from '../../../lib/api';
+import { C, KIND_TONE, Tag } from '../../../lib/ui';
 
 type Better = 'lower' | 'higher' | 'neutral';
 interface Row {
@@ -77,7 +77,7 @@ export default function Metrics({ metrics, winner }: { metrics: VariantMetrics[]
                   return (
                     <td key={metrics[i].variant_id} style={td}>
                       <div className="mono" style={{ fontSize: 14, color: v == null ? C.muted : isBest ? C.green : C.text }}>
-                        {v == null ? '–' : row.fmt(v)}
+                        {v == null ? 'n/a' : row.fmt(v)}
                         {isBest && <span style={{ fontSize: 10, marginLeft: 6, fontFamily: 'Inter, sans-serif' }}>better</span>}
                       </div>
                       <div aria-hidden="true" style={{ height: 3, background: C.border, borderRadius: 2, marginTop: 6, maxWidth: 220 }}>
@@ -99,7 +99,7 @@ export default function Metrics({ metrics, winner }: { metrics: VariantMetrics[]
               return (
                 <td key={m.variant_id} style={{ ...td, borderBottom: 'none' }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {kinds.length === 0 ? <span style={{ color: C.muted }}>–</span> : kinds.map((k) => <Tag key={k} tone={KIND_TONE[k]}>{m.observations_by_kind[k]} {k}</Tag>)}
+                    {kinds.length === 0 ? <span style={{ color: C.muted }}>none</span> : kinds.map((k) => <Tag key={k} tone={KIND_TONE[k]}>{m.observations_by_kind[k]} {k}</Tag>)}
                   </div>
                 </td>
               );
