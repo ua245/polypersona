@@ -10,7 +10,7 @@ import { C } from '../lib/ui';
 import { StageIcon, orderedStages } from '../pages/test/live/stages';
 
 type Mark = 'ok' | 'dead' | 'idle' | 'complaint' | 'delight';
-const MARK_COLOR: Record<Mark, string> = { ok: C.green, dead: C.red, idle: '#3b4252', complaint: C.yellow, delight: '#a3e635' };
+const MARK_COLOR: Record<Mark, string> = { ok: C.green, dead: C.red, idle: 'var(--pp-border2)', complaint: C.yellow, delight: 'var(--pp-delight)' };
 const NEGATIVE = new Set<Observation['kind']>(['bug', 'friction', 'confusion']);
 
 interface Footprint { step: Step; stage: string; k: number; mark: Mark; obs: Observation[] }
@@ -191,8 +191,8 @@ export default function Crowd({ sessions, runId, mode, variantLabel = (v) => `Va
               const count = inStage.get(st) ?? 0;
               return (
                 <g key={st}>
-                  <rect x={x} y={HEAD_H - 6} width={colW} height={H - HEAD_H} fill={i % 2 ? '#0d0f15' : '#0b0d12'} />
-                  <rect x={x} y={HEAD_H - 6} width={colW} height={H - HEAD_H} fill="url(#crowd-heat)" opacity={Math.min(0.24, h * 0.02)} style={{ transition: 'opacity .6s' }} />
+                  <rect x={x} y={HEAD_H - 6} width={colW} height={H - HEAD_H} fill={i % 2 ? 'var(--pp-stripe-1)' : 'var(--pp-stripe-2)'} />
+                  <rect x={x} y={HEAD_H - 6} width={colW} height={H - HEAD_H} fill="url(#crowd-heat)" style={{ opacity: `calc(var(--pp-heat) * ${Math.min(0.24, h * 0.02)})`, transition: 'opacity .6s' }} />
                   <line x1={x} x2={x} y1={10} y2={H} stroke={C.border} strokeWidth={1} />
                   <g transform={`translate(${x + 10}, 12)`}><StageIcon stage={st} color={h >= 4 ? C.red : C.muted2} size={16} /></g>
                   <text x={x + 32} y={24} fontSize={11.5} fill={C.text} fontWeight={600}>{st.length > Math.floor(colW / 8) ? `${st.slice(0, Math.floor(colW / 8) - 1)}…` : st}</text>
@@ -222,7 +222,7 @@ export default function Crowd({ sessions, runId, mode, variantLabel = (v) => `Va
                   const big = p.mark === 'complaint' || p.mark === 'delight';
                   return (
                     <circle key={p.step.idx} cx={x} cy={py} r={big ? 3.6 : 2.8} fill={MARK_COLOR[p.mark]} opacity={p.mark === 'idle' ? 0.9 : 0.95}
-                      filter={big ? 'url(#crowd-glow)' : undefined} className="crowd-print" style={{ cursor: runId ? 'pointer' : 'default' }}
+                      className="crowd-print" style={{ cursor: runId ? 'pointer' : 'default' }}
                       onMouseEnter={() => setHover({ lane: l, print: p })} onClick={() => open(l.s, p.step.idx)} />
                   );
                 })}
@@ -251,7 +251,7 @@ export default function Crowd({ sessions, runId, mode, variantLabel = (v) => `Va
               return (
                 <g key={l.s.session_id} className="crowd-outcome">
                   {ok && <circle cx={cx} cy={cy} r={16} fill={C.green} opacity={0.18} className="crowd-burst" />}
-                  <circle cx={cx} cy={cy} r={10} fill={ok ? C.green : 'transparent'} stroke={ok ? C.green : C.red} strokeWidth={1.8} filter={ok ? 'url(#crowd-glow)' : undefined} />
+                  <circle cx={cx} cy={cy} r={10} fill={ok ? C.green : 'transparent'} stroke={ok ? C.green : C.red} strokeWidth={1.8} />
                   {ok ? <path d={`M${cx - 4.5} ${cy}l3 3 6-6.5`} stroke={C.bg} strokeWidth={2.2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
                     : <path d={`M${cx - 4} ${cy - 4}l8 8M${cx + 4} ${cy - 4}l-8 8`} stroke={C.red} strokeWidth={2} strokeLinecap="round" />}
                   <text x={cx + 17} y={cy - 1} fontSize={10.5} fill={ok ? C.green : C.red} fontWeight={600}>{ok ? 'converted' : l.s.outcome === 'out_of_steps' ? 'lost patience' : 'gave up'}</text>
@@ -301,7 +301,7 @@ export default function Crowd({ sessions, runId, mode, variantLabel = (v) => `Va
       </div>
 
       <div className="crowd-legend mono">
-        <Key color={C.green}>page changed</Key><Key color={C.red}>click did nothing</Key><Key color={C.yellow}>complaint</Key><Key color="#a3e635">delight</Key>
+        <Key color={C.green}>page changed</Key><Key color={C.red}>click did nothing</Key><Key color={C.yellow}>complaint</Key><Key color="var(--pp-delight)">delight</Key>
         <span style={{ marginLeft: 'auto' }}>hover anyone to hear them</span>
       </div>
       <style>{CSS}</style>
@@ -314,25 +314,25 @@ function Stat({ n, label, color }: { n: number; label: string; color: string }) 
 }
 
 function Key({ color, children }: { color: string; children: string }) {
-  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: color, boxShadow: `0 0 8px ${color}` }} />{children}</span>;
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: color }} />{children}</span>;
 }
 
 const CSS = `
-.crowd { position: relative; border-radius: 16px; padding: 18px 18px 14px; background:
-  radial-gradient(120% 90% at 50% -10%, rgba(74,222,128,0.07), transparent 60%), linear-gradient(180deg, #0f1117, #0b0c11);
-  border: 1px solid #1e2230; box-shadow: 0 0 0 1px rgba(255,255,255,0.02) inset, 0 30px 80px -30px rgba(74,222,128,0.18); }
+.crowd { position: relative; border-radius: 12px; padding: 18px 18px 14px; background:
+  var(--pp-surface);
+  border: 1px solid var(--pp-border); }
 .crowd-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; margin-bottom: 10px; }
 .crowd-stats { display: flex; gap: 22px; }
-.crowd-stat { display: flex; align-items: baseline; gap: 7px; font-size: 12px; color: #6b7280; }
+.crowd-stat { display: flex; align-items: baseline; gap: 7px; font-size: 12px; color: var(--pp-muted); }
 .crowd-stat .mono { font-size: 26px; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; }
-.crowd-caption { font-size: 10.5px; letter-spacing: 0.1em; color: #9ca3af; display: inline-flex; align-items: center; gap: 8px; }
-.crowd-rec { width: 7px; height: 7px; border-radius: 50%; background: #f87171; box-shadow: 0 0 10px #f87171; animation: pp-pulse 1.2s ease-in-out infinite; }
-.crowd-restart { background: none; border: 1px solid #252a38; color: #9ca3af; border-radius: 5px; width: 22px; height: 22px; cursor: pointer; font-size: 12px; line-height: 1; }
-.crowd-play { margin-left: 10px; background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.35); color: #4ade80; border-radius: 6px; padding: 4px 10px; font: 600 11px 'Inter', sans-serif; letter-spacing: 0; cursor: pointer; }
-.crowd-play:hover { background: rgba(74,222,128,0.18); }
-.crowd-restart:hover { color: #e8eaf0; border-color: #4ade80; }
-.crowd-progress { height: 2px; background: #1e2230; border-radius: 2px; overflow: hidden; margin-bottom: 8px; }
-.crowd-progress > div { height: 100%; background: linear-gradient(90deg, #22c55e, #4ade80); box-shadow: 0 0 8px #4ade80; }
+.crowd-caption { font-size: 10.5px; letter-spacing: 0.1em; color: var(--pp-muted2); display: inline-flex; align-items: center; gap: 8px; }
+.crowd-rec { width: 7px; height: 7px; border-radius: 50%; background: var(--pp-red); box-shadow: 0 0 10px var(--pp-red); animation: pp-pulse 1.2s ease-in-out infinite; }
+.crowd-restart { background: none; border: 1px solid var(--pp-border2); color: var(--pp-muted2); border-radius: 5px; width: 22px; height: 22px; cursor: pointer; font-size: 12px; line-height: 1; }
+.crowd-play { margin-left: 10px; background: rgba(var(--pp-accent-rgb),0.1); border: 1px solid rgba(var(--pp-accent-rgb),0.35); color: var(--pp-accent); border-radius: 6px; padding: 4px 10px; font: 600 11px 'Inter', sans-serif; letter-spacing: 0; cursor: pointer; }
+.crowd-play:hover { background: rgba(var(--pp-accent-rgb),0.18); }
+.crowd-restart:hover { color: var(--pp-text); border-color: var(--pp-accent); }
+.crowd-progress { height: 2px; background: var(--pp-border); border-radius: 2px; overflow: hidden; margin-bottom: 8px; }
+.crowd-progress > div { height: 100%; background: var(--pp-accent); }
 .crowd-scroll { overflow-x: auto; }
 .crowd-canvas { position: relative; min-width: 680px; }
 .crowd-head { transition: transform 0.7s cubic-bezier(.2,.8,.2,1); }
@@ -347,20 +347,20 @@ const CSS = `
 @keyframes crowd-burst { 0% { transform: scale(.4); opacity: .9; } 100% { transform: scale(2.2); opacity: 0; } }
 @keyframes crowd-fade { from { opacity: 0; } to { opacity: 1; } }
 .crowd-bubble { position: absolute; transform: translate(-50%, calc(-100% - 18px)); max-width: 260px; padding: 7px 10px; border-radius: 10px;
-  background: rgba(17,19,24,0.94); border: 1px solid #252a38; font-size: 11.5px; line-height: 1.4; color: #e8eaf0; pointer-events: none;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5); animation: crowd-rise .35s ease-out both; backdrop-filter: blur(6px); }
-.crowd-bubble::after { content: ''; position: absolute; left: 50%; bottom: -5px; width: 8px; height: 8px; background: inherit; border-right: 1px solid #252a38; border-bottom: 1px solid #252a38; transform: translateX(-50%) rotate(45deg); }
+  background: var(--pp-glass); border: 1px solid var(--pp-border2); font-size: 11.5px; line-height: 1.4; color: var(--pp-text); pointer-events: none;
+  box-shadow: 0 10px 30px var(--pp-shadow); animation: crowd-rise .35s ease-out both; backdrop-filter: blur(6px); }
+.crowd-bubble::after { content: ''; position: absolute; left: 50%; bottom: -5px; width: 8px; height: 8px; background: inherit; border-right: 1px solid var(--pp-border2); border-bottom: 1px solid var(--pp-border2); transform: translateX(-50%) rotate(45deg); }
 .crowd-bubble.left { transform: translate(calc(-100% - 20px), -50%); animation-name: crowd-rise-left; }
 .crowd-bubble.left::after { left: auto; right: -5px; top: 50%; bottom: auto; transform: translateY(-50%) rotate(-45deg); }
 @keyframes crowd-rise-left { from { opacity: 0; transform: translate(calc(-100% - 10px), -50%); } to { opacity: 1; transform: translate(calc(-100% - 20px), -50%); } }
-.crowd-bubble.neg { border-color: rgba(250,204,21,0.45); } .crowd-bubble.pos { border-color: rgba(163,230,53,0.45); }
-.crowd-bubble b { color: #9ca3af; font-weight: 600; margin-right: 4px; }
+.crowd-bubble.neg { border-color: rgba(var(--pp-yellow-rgb),0.45); } .crowd-bubble.pos { border-color: rgba(163,230,53,0.45); }
+.crowd-bubble b { color: var(--pp-muted2); font-weight: 600; margin-right: 4px; }
 @keyframes crowd-rise { from { opacity: 0; transform: translate(-50%, calc(-100% - 8px)); } to { opacity: 1; transform: translate(-50%, calc(-100% - 18px)); } }
-.crowd-card { position: absolute; z-index: 3; width: 300px; padding: 12px 14px; border-radius: 12px; background: rgba(17,19,24,0.97);
-  border: 1px solid #252a38; box-shadow: 0 18px 50px rgba(0,0,0,0.6); pointer-events: none; animation: crowd-fade .15s ease-out both; }
+.crowd-card { position: absolute; z-index: 3; width: 300px; padding: 12px 14px; border-radius: 12px; background: var(--pp-glass);
+  border: 1px solid var(--pp-border2); box-shadow: 0 18px 50px var(--pp-shadow); pointer-events: none; animation: crowd-fade .15s ease-out both; }
 .crowd-av { width: 28px; height: 28px; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.crowd-obs { margin-top: 8px; padding: 7px 9px; border-radius: 8px; background: #181b22; font-size: 12px; line-height: 1.45; border-left: 2px solid #60a5fa; }
-.crowd-obs.neg { border-left-color: #facc15; } .crowd-obs.pos { border-left-color: #a3e635; }
-.crowd-obs .mono { display: block; font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #6b7280; margin-bottom: 2px; }
-.crowd-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 10.5px; color: #6b7280; margin-top: 10px; }
+.crowd-obs { margin-top: 8px; padding: 7px 9px; border-radius: 8px; background: var(--pp-surface2); font-size: 12px; line-height: 1.45; border-left: 2px solid var(--pp-blue); }
+.crowd-obs.neg { border-left-color: var(--pp-yellow); } .crowd-obs.pos { border-left-color: var(--pp-delight); }
+.crowd-obs .mono { display: block; font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pp-muted); margin-bottom: 2px; }
+.crowd-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 10.5px; color: var(--pp-muted); margin-top: 10px; }
 `;
