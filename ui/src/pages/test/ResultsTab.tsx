@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import type { RunState } from '../../lib/api';
 import { runCounts } from '../../lib/derive';
+import { downloadMarkdown, downloadPdf } from '../../lib/report';
 import { C } from '../../lib/ui';
 import Ask from './results/Ask';
 import Funnel from './results/Funnel';
@@ -20,6 +21,8 @@ const STYLES = `
 .pp-clamp-5, .pp-clamp-2 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
 .pp-clamp-5 { -webkit-line-clamp: 5; }
 .pp-clamp-2 { -webkit-line-clamp: 2; }
+.pp-export { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-bottom: 12px; }
+.pp-export-btn { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; padding: 6px 12px; }
 `;
 
 function Waiting({ run, onOpenLive }: { run: RunState; onOpenLive: () => void }) {
@@ -70,6 +73,7 @@ export default function ResultsTab({ run, onOpenLive }: { run: RunState; onOpenL
   return (
     <div style={{ minWidth: 0 }}>
       <style>{STYLES}</style>
+      <ExportBar run={run} />
       <VerdictHero run={run} />
       <div style={{ marginTop: 12 }}><KpiTiles run={run} /></div>
       {verdict.suggestions && verdict.suggestions.length > 0 && (
@@ -111,6 +115,21 @@ export default function ResultsTab({ run, onOpenLive }: { run: RunState; onOpenL
       <div style={{ marginTop: 28, fontSize: 13, color: C.muted2 }}>
         Want to see it happen? <button type="button" onClick={onOpenLive} style={{ background: 'none', border: 'none', padding: 0, color: C.green, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13 }}>Replay every agent in the Live tab</button>
       </div>
+    </div>
+  );
+}
+
+/** Download the finished report: a print-ready PDF, or Markdown for docs and tickets. */
+function ExportBar({ run }: { run: RunState }) {
+  const [busy, setBusy] = useState(false);
+  const icon = <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 1.5v8M3.8 6.5 7 9.7l3.2-3.2M2 12.5h10" /></svg>;
+  return (
+    <div className="pp-export" role="group" aria-label="Export report">
+      <span style={{ fontSize: 12, color: C.muted2 }}>Export report</span>
+      <button type="button" className="btn-secondary pp-export-btn" disabled={busy} onClick={async () => { setBusy(true); try { await downloadPdf(run); } finally { setBusy(false); } }}>
+        {icon}{busy ? 'Preparing PDF…' : 'Download PDF'}
+      </button>
+      <button type="button" className="btn-secondary pp-export-btn" onClick={() => downloadMarkdown(run)}>{icon}Download Markdown</button>
     </div>
   );
 }
