@@ -6,6 +6,9 @@ Keys: "index" (run summaries), "<run>/state" (live state), "<run>/<session>/<idx
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
+import hmac
 import os
 import secrets
 import time
@@ -13,9 +16,25 @@ import traceback
 
 from . import evaluator
 from .live import DictBackend, LiveBoard
+from pydantic import BaseModel
+
 from .models import EvaluatorReport, SessionReport, VariantMetrics
 from .orchestrator import Result, RunConfig, judge, plan, run_on_modal, session_ids
 from .personas import DEFAULT_PERSONAS, generate_personas
+
+
+class LoginBody(BaseModel):
+    username: str
+    password: str
+
+
+class GenerateBody(BaseModel):
+    audience: str
+    n: int = 4
+
+
+class AskBody(BaseModel):
+    question: str
 
 
 async def _index_update(store, run_id: str, **fields) -> None:
@@ -63,18 +82,43 @@ async def execute(run_id: str, config_json: str, store, run_session_remote) -> N
 def create_api(store, run_experiment):
     from fastapi import Depends, FastAPI, Header, HTTPException, Response
     from fastapi.middleware.cors import CORSMiddleware
-    from pydantic import BaseModel
 
     api = FastAPI(title="Polypersona")
     api.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-    def authorised(authorization: str = Header(default="")) -> None:
-        """Starting runs spends Gemini and Modal money, so writes need the shared token."""
-        expected = os.environ.get("POLYPERSONA_TOKEN")
-        if not expected:
+    DAILY_RUNS_PER_USER = 12
+
+    def _users() -> dict[str, str]:
+        """POLYPERSONA_USERS="name:password,name2:password2"."""
+        pairs = (item.split(":", 1) for item in os.environ.get("POLYPERSONA_USERS", "").split(",") if ":" in item)
+        return {name.strip(): password.strip() for name, password in pairs}
+
+    def _sign(payload: str) -> str:
+        return hmac.new(os.environ["POLYPERSONA_TOKEN"].encode(), payload.encode(), hashlib.sha256).hexdigest()
+
+    def authorised(authorization: str = Header(default="")) -> str:
+        """Starting runs spends Gemini and Modal money, so writes need a login session or the master token. Returns the user."""
+        master = os.environ.get("POLYPERSONA_TOKEN")
+        if not master:
             raise HTTPException(503, "POLYPERSONA_TOKEN is not configured on the server")
-        if not secrets.compare_digest(authorization.removeprefix("Bearer ").strip(), expected):
-            raise HTTPException(401, "missing or wrong token")
+        token = authorization.removeprefix("Bearer ").strip()
+        if secrets.compare_digest(token, master):
+            return "owner"
+        user, _, rest = token.partition(".")
+        expiry, _, signature = rest.partition(".")
+        if user in _users() and expiry.isdigit() and int(expiry) > time.time() and secrets.compare_digest(signature, _sign(f"{user}.{expiry}")):
+            return user
+        raise HTTPException(401, "sign in again")
+
+    @api.post("/api/login")
+    async def login(body: LoginBody) -> dict:
+        expected = _users().get(body.username.strip())
+        if not os.environ.get("POLYPERSONA_TOKEN") or expected is None or not secrets.compare_digest(body.password, expected):
+            await asyncio.sleep(1)  # slow down guessing
+            raise HTTPException(401, "wrong username or password")
+        expiry = int(time.time()) + 7 * 24 * 3600
+        payload = f"{body.username.strip()}.{expiry}"
+        return {"token": f"{payload}.{_sign(payload)}", "user": body.username.strip(), "expires_at": expiry}
 
     async def state_of(run_id: str) -> dict:
         state = await store.get.aio(f"{run_id}/state")
@@ -86,17 +130,13 @@ def create_api(store, run_experiment):
     async def health() -> dict:
         return {"ok": True}
 
-    @api.get("/api/auth", dependencies=[Depends(authorised)])
-    async def auth() -> dict:
-        return {"ok": True}
+    @api.get("/api/auth")
+    async def auth(user: str = Depends(authorised)) -> dict:
+        return {"ok": True, "user": user}
 
     @api.get("/api/personas")
     async def personas() -> list[dict]:
         return [p.model_dump() for p in DEFAULT_PERSONAS]
-
-    class GenerateBody(BaseModel):
-        audience: str
-        n: int = 4
 
     @api.post("/api/personas/generate", dependencies=[Depends(authorised)])
     async def generate(body: GenerateBody) -> list[dict]:
@@ -106,13 +146,18 @@ def create_api(store, run_experiment):
     async def list_runs() -> list[dict]:
         return await store.get.aio("index", [])
 
-    @api.post("/api/runs", dependencies=[Depends(authorised)])
-    async def start_run(config: RunConfig) -> dict:
+    @api.post("/api/runs")
+    async def start_run(config: RunConfig, user: str = Depends(authorised)) -> dict:
+        quota_key = f"quota/{user}/{time.strftime('%Y%m%d')}"
+        used = await store.get.aio(quota_key, 0)
+        if user != "owner" and used >= DAILY_RUNS_PER_USER:
+            raise HTTPException(429, f"daily limit of {DAILY_RUNS_PER_USER} runs reached for {user}")
+        await store.put.aio(quota_key, used + 1)
         config.repeats = max(1, min(config.repeats, 3))
         config.personas = max(1, min(config.personas, 6))
         run_id = time.strftime("%Y%m%d-%H%M%S-") + secrets.token_hex(2)
         await store.put.aio(f"{run_id}/state", {"run_id": run_id, "status": "starting", "created_at": time.time(), "config": config.model_dump(), "sessions": {}})
-        await _index_update(store, run_id, status="starting", created_at=time.time(), config=config.model_dump())
+        await _index_update(store, run_id, status="starting", created_at=time.time(), config=config.model_dump(), started_by=user)
         await run_experiment.spawn.aio(run_id, config.model_dump_json())
         return {"run_id": run_id}
 
@@ -135,14 +180,20 @@ def create_api(store, run_experiment):
         return Response(image, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
     @api.get("/api/runs/{run_id}/sessions/{session_id}/video")
-    async def video(run_id: str, session_id: str) -> Response:
+    async def video(run_id: str, session_id: str, range: str = Header(default="")) -> Response:
         data = await store.get.aio(f"{run_id}/{session_id}/video")
         if data is None:
             raise HTTPException(404, "no recording yet")
-        return Response(data, media_type="video/webm", headers={"Cache-Control": "public, max-age=31536000, immutable", "Accept-Ranges": "none"})
-
-    class AskBody(BaseModel):
-        question: str
+        headers = {"Cache-Control": "public, max-age=31536000, immutable", "Accept-Ranges": "bytes"}
+        if range.startswith("bytes="):  # browsers need byte ranges to seek in a video
+            first, _, last = range.removeprefix("bytes=").split(",")[0].partition("-")
+            start = int(first) if first else max(0, len(data) - int(last or 0))
+            end = min(int(last), len(data) - 1) if first and last else len(data) - 1
+            if start > end:
+                raise HTTPException(416, "range not satisfiable")
+            headers["Content-Range"] = f"bytes {start}-{end}/{len(data)}"
+            return Response(data[start : end + 1], status_code=206, media_type="video/webm", headers=headers)
+        return Response(data, media_type="video/webm", headers=headers)
 
     @api.post("/api/runs/{run_id}/ask", dependencies=[Depends(authorised)])
     async def ask(run_id: str, body: AskBody) -> dict:

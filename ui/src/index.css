@@ -83,3 +83,8 @@ body {
 .dot-green { display: inline-block; width: 6px; height: 6px; background: #4ade80; border-radius: 50%; }
 .dot-yellow { display: inline-block; width: 6px; height: 6px; background: #facc15; border-radius: 50%; }
 .dot-red { display: inline-block; width: 6px; height: 6px; background: #f87171; border-radius: 50%; }
+
+@keyframes pp-pulse { 50% { opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #4ade80; outline-offset: 2px; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }

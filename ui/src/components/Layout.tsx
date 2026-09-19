@@ -14,15 +14,15 @@ export default function Layout() {
 function Nav({ isLanding }: { isLanding: boolean }) {
   return (
     <nav style={{
-      display: 'flex', alignItems: 'center', padding: '0 24px', height: 48,
+      display: 'flex', alignItems: 'center', padding: '0 clamp(12px, 3vw, 24px)', height: 48,
       borderBottom: '1px solid #1e2230', background: '#09090e',
       position: 'sticky', top: 0, zIndex: 100,
     }}>
-      <NavLink to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', marginRight: 32 }}>
+      <NavLink to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', marginRight: 'clamp(8px, 3vw, 32px)', flexShrink: 0 }}>
         <LogoIcon />
         <span style={{ color: '#e8eaf0', fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em' }}>PolyPersona</span>
       </NavLink>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, minWidth: 0, overflowX: 'auto', scrollbarWidth: 'none' }}>
         <NavItem to="/workspace" label="Workspace" />
         <NavItem to="/populations" label="Populations" />
         <NavItem to="/tools" label="Tools" />
@@ -45,7 +45,7 @@ function NavItem({ to, label }: { to: string; label: string }) {
   return (
     <NavLink to={to} style={({ isActive }) => ({
       color: isActive ? '#e8eaf0' : '#6b7280', textDecoration: 'none',
-      fontSize: 13, fontWeight: 500, padding: '6px 12px', borderRadius: 6,
+      fontSize: 13, fontWeight: 500, padding: '6px 12px', borderRadius: 6, whiteSpace: 'nowrap',
       background: isActive ? '#111318' : 'transparent',
       transition: 'color 0.15s, background 0.15s',
     })}>{label}</NavLink>
