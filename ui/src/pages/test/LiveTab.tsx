@@ -5,7 +5,6 @@ import { SENTIMENT_HELP, agentState, avatarColor, initials, pct, runCounts, sent
 import { C, Empty, Tag } from '../../lib/ui';
 import Crowd from '../../components/Crowd';
 import AgentCard from './live/AgentCard';
-import JourneyMatrix from './live/JourneyMatrix';
 import PanelActivity from './live/PanelActivity';
 
 const TONE_COLOR = { muted: C.muted2, green: C.green, yellow: C.yellow, blue: C.blue, red: C.red } as const;
@@ -69,7 +68,7 @@ export default function LiveTab({ run, onOpenResults }: { run: RunState; onOpenR
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <style>{'.pp-agent-card{transition:border-color .15s,transform .15s}.pp-agent-card:hover{border-color:#4ade80 !important}'}</style>
+      <style>{'.pp-agent-card{transition:border-color .15s,transform .15s}.pp-agent-card:hover{border-color:var(--pp-accent) !important}'}</style>
 
       {/* ---------- counts ---------- */}
       <div aria-live="polite" aria-label="Agent counts" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
@@ -104,7 +103,7 @@ export default function LiveTab({ run, onOpenResults }: { run: RunState; onOpenR
 
       {/* ---------- verdict / evaluating ---------- */}
       {verdict ? (
-        <section className="card" aria-label="Verdict" style={{ padding: '14px 16px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 20px', borderColor: winnerIsVariant ? 'rgba(74,222,128,0.35)' : C.border2 }}>
+        <section className="card" aria-label="Verdict" style={{ padding: '14px 16px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 20px', borderColor: winnerIsVariant ? 'rgba(var(--pp-accent-rgb),0.35)' : C.border2 }}>
           <div style={{ flex: '1 1 380px', minWidth: 0 }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em', color: winnerIsVariant ? C.green : C.text }}>
@@ -171,7 +170,6 @@ export default function LiveTab({ run, onOpenResults }: { run: RunState; onOpenR
         </div>
       )}
 
-      {sessions.length > 0 && <JourneyMatrix runId={run.run_id} sessions={sessions} />}
     </div>
   );
 }
