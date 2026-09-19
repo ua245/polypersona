@@ -3,9 +3,11 @@ import { useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { ApiError, fmtTime, getToken, sessionList, shotUrl, signIn, signOut, type RunState, type ObservationKind, type Outcome, type RunStatus, type SessionState, type Step } from './api';
 
+// Every colour is a CSS variable set by the active theme (lib/theme.ts).
 export const C = {
-  bg: '#09090e', surface: '#111318', surface2: '#181b22', border: '#1e2230', border2: '#252a38',
-  green: '#4ade80', yellow: '#facc15', red: '#f87171', blue: '#60a5fa', text: '#e8eaf0', muted: '#6b7280', muted2: '#9ca3af',
+  bg: 'var(--pp-bg)', surface: 'var(--pp-surface)', surface2: 'var(--pp-surface2)', border: 'var(--pp-border)', border2: 'var(--pp-border2)',
+  green: 'var(--pp-accent)', yellow: 'var(--pp-yellow)', red: 'var(--pp-red)', blue: 'var(--pp-blue)', text: 'var(--pp-text)', muted: 'var(--pp-muted)', muted2: 'var(--pp-muted2)',
+  onAccent: 'var(--pp-on-accent)', delight: 'var(--pp-delight)',
 };
 
 export function Page({ title, subtitle, actions, runBar, children }: { title: string; subtitle?: ReactNode; actions?: ReactNode; runBar?: ReactNode; children: ReactNode }) {
@@ -85,7 +87,7 @@ export function RunBar({ run, active }: { run: RunState; active: 'watch' | 'agen
           return (
             <Link key={t.key} to={t.to} aria-current={on ? 'page' : undefined} style={{
               textDecoration: 'none', color: C.text, padding: '8px 12px', borderRadius: 6, minWidth: 0,
-              background: on ? C.surface2 : 'transparent', border: `1px solid ${on ? C.green : nudge ? 'rgba(74,222,128,0.45)' : C.border}`,
+              background: on ? C.surface2 : 'transparent', border: `1px solid ${on ? C.green : nudge ? 'rgba(var(--pp-accent-rgb),0.45)' : C.border}`,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600 }}>
                 <span className="mono" style={{ fontSize: 11, color: on ? C.green : C.muted2 }}>{t.n}</span>{t.label}
@@ -133,7 +135,7 @@ export function Screenshot({ runId, sessionId, idx, nextStep, device, maxHeight,
         {hasDot && (
           <span style={{
             position: 'absolute', left: `${nextStep!.args.x! / 10}%`, top: `${nextStep!.args.y! / 10}%`, width: 18, height: 18, margin: '-9px 0 0 -9px',
-            borderRadius: '50%', background: 'rgba(74,222,128,0.35)', border: `2px solid ${C.green}`, boxShadow: '0 0 0 4px rgba(74,222,128,0.15)', pointerEvents: 'none',
+            borderRadius: '50%', background: 'rgba(var(--pp-accent-rgb),0.35)', border: `2px solid ${C.green}`, boxShadow: '0 0 0 4px rgba(var(--pp-accent-rgb),0.15)', pointerEvents: 'none',
           }} />
         )}
       </div>
@@ -170,7 +172,7 @@ export function useTokenGate() {
   };
 
   const dialog = open ? (
-    <div role="dialog" aria-modal="true" aria-labelledby="pp-signin-title" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
+    <div role="dialog" aria-modal="true" aria-labelledby="pp-signin-title" style={{ position: 'fixed', inset: 0, background: 'var(--pp-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
       <form className="card" style={{ padding: 24, width: 400, maxWidth: '100%' }} onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <div id="pp-signin-title" style={{ fontSize: 16, fontWeight: 600 }}>Sign in to continue</div>
         <p style={{ color: C.muted2, fontSize: 13, margin: '6px 0 16px' }}>Starting a test uses Gemini and Modal credit, so it needs an account. Viewing runs does not.</p>
