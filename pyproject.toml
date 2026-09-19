@@ -3,9 +3,10 @@ name = "polypersona"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "logfire>=4",
     "modal>=1.5.5",
     "playwright>=1.63.0",
-    "pydantic-ai-slim[google]>=2.46.0",
+    "pydantic-ai-slim[google,openai]>=2.46.0",
     "python-dotenv>=1.2.3",
 ]
 
