@@ -260,14 +260,14 @@ export default function NewTest() {
 
 function Section({ n, title, aside, children }: { n: string; title: string; aside?: ReactNode; children: ReactNode }) {
   return (
-    <section style={{ minWidth: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 14 }}>
-        <span className="mono" style={{ fontSize: 11, color: C.green }}>{n}</span>
-        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em' }}>{title}</h2>
+    <section className="nt-panel">
+      <div className="nt-panel-head">
+        <span className="mono nt-step">{n}</span>
+        <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 600, letterSpacing: '-0.01em' }}>{title}</h2>
         <span style={{ flex: 1 }} />
         {aside}
       </div>
-      {children}
+      <div className="nt-panel-body">{children}</div>
     </section>
   );
 }
@@ -281,36 +281,45 @@ function RadioDot({ on }: { on: boolean }) {
 }
 
 const CSS = `
-.nt-wrap { max-width: 1040px; margin: 0 auto; padding: 56px 24px 140px; }
-.nt-grid { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 72px; align-items: start; }
+.nt-wrap { max-width: 1120px; margin: 0 auto; padding: 48px 24px 140px; }
+.nt-grid { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 56px; align-items: start; }
 .nt-side { position: sticky; top: 96px; }
-.nt-checklist { list-style: none; margin: 32px 0 0; padding: 0; display: grid; gap: 18px; }
-.nt-checklist li { display: flex; gap: 12px; align-items: flex-start; }
+.nt-checklist { list-style: none; margin: 32px 0 0; padding: 0; display: grid; gap: 0; }
+.nt-checklist li { position: relative; display: flex; gap: 12px; align-items: flex-start; padding-bottom: 22px; }
+.nt-checklist li:not(:last-child)::before { content: ''; position: absolute; left: 8.5px; top: 24px; bottom: 2px; width: 1px; background: var(--pp-border2); }
+.nt-panel { min-width: 0; border-radius: 12px; background: var(--pp-surface); border: 1px solid var(--pp-border); }
+.nt-panel-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--pp-border); }
+.nt-panel-body { padding: 18px; }
+.nt-step { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: var(--pp-accent); border: 1px solid rgba(var(--pp-accent-rgb),0.45); background: rgba(var(--pp-accent-rgb),0.07); }
+.nt-panel .nt-radio, .nt-panel .nt-pick { background: var(--pp-bg); }
+.nt-panel .nt-radio[data-on="true"], .nt-panel .nt-pick[data-on="true"] { background: rgba(var(--pp-accent-rgb),0.05); }
 .nt-check-detail { display: block; font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
 .nt-detail-side { margin-top: 28px; }
 .nt-detail-inline { display: none; margin-top: 10px; }
 .nt-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.nt-radio { display: block; position: relative; padding: 16px; border-radius: 10px; cursor: pointer; background: #111318; border: 1px solid #1e2230; transition: border-color 0.15s, background 0.15s; min-width: 0; }
-.nt-radio:hover { border-color: #252a38; }
-.nt-radio[data-on="true"] { border-color: #4ade80; background: rgba(74,222,128,0.05); }
+.nt-radio { display: block; position: relative; padding: 16px; border-radius: 10px; cursor: pointer; background: var(--pp-surface); border: 1px solid var(--pp-border); transition: border-color 0.15s, background 0.15s; min-width: 0; }
+.nt-radio:hover { border-color: var(--pp-border2); }
+.nt-radio[data-on="true"] { border-color: var(--pp-accent); background: rgba(var(--pp-accent-rgb),0.05); }
 .nt-radio input, .nt-seg input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
-.nt-radio:has(input:focus-visible), .nt-seg:has(input:focus-visible) { outline: 2px solid #4ade80; outline-offset: 2px; }
-.nt-pick { display: flex; align-items: center; gap: 12px; text-align: left; padding: 12px 14px; border-radius: 10px; cursor: pointer; font-family: inherit; color: #e8eaf0; min-width: 0; background: #111318; border: 1px solid #1e2230; transition: border-color 0.15s, background 0.15s; }
-.nt-pick:hover { border-color: #252a38; }
-.nt-pick[data-on="true"] { border-color: rgba(74,222,128,0.55); background: rgba(74,222,128,0.05); }
+.nt-radio:has(input:focus-visible), .nt-seg:has(input:focus-visible) { outline: 2px solid var(--pp-accent); outline-offset: 2px; }
+.nt-pick { display: flex; align-items: center; gap: 12px; text-align: left; padding: 12px 14px; border-radius: 10px; cursor: pointer; font-family: inherit; color: var(--pp-text); min-width: 0; background: var(--pp-surface); border: 1px solid var(--pp-border); transition: border-color 0.15s, background 0.15s; }
+.nt-pick:hover { border-color: var(--pp-border2); }
+.nt-pick[data-on="true"] { border-color: rgba(var(--pp-accent-rgb),0.55); background: rgba(var(--pp-accent-rgb),0.05); }
 .nt-input { font-size: 14px; padding: 10px 12px; }
-.nt-link { color: #9ca3af; background: none; border: none; padding: 0; cursor: pointer; font-family: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: #252a38; }
-.nt-link:hover { color: #e8eaf0; }
-.nt-details summary { cursor: pointer; font-size: 13px; color: #9ca3af; width: fit-content; border-radius: 4px; }
-.nt-details summary:hover { color: #e8eaf0; }
-.nt-details summary:focus-visible { outline: 2px solid #4ade80; outline-offset: 2px; }
-.nt-seg { position: relative; padding: 6px 18px; font-size: 13px; font-weight: 500; border-radius: 6px; cursor: pointer; color: #9ca3af; }
-.nt-seg[data-on="true"] { background: #181b22; color: #e8eaf0; box-shadow: inset 0 0 0 1px #252a38; }
-.nt-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 90; background: rgba(9,9,14,0.92); backdrop-filter: blur(8px); border-top: 1px solid #1e2230; }
-.nt-bar-in { max-width: 1040px; margin: 0 auto; padding: 14px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+.nt-link { color: var(--pp-muted2); background: none; border: none; padding: 0; cursor: pointer; font-family: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--pp-border2); }
+.nt-link:hover { color: var(--pp-text); }
+.nt-details summary { cursor: pointer; font-size: 13px; color: var(--pp-muted2); width: fit-content; border-radius: 4px; }
+.nt-details summary:hover { color: var(--pp-text); }
+.nt-details summary:focus-visible { outline: 2px solid var(--pp-accent); outline-offset: 2px; }
+.nt-seg { position: relative; padding: 6px 18px; font-size: 13px; font-weight: 500; border-radius: 6px; cursor: pointer; color: var(--pp-muted2); }
+.nt-seg[data-on="true"] { background: var(--pp-surface2); color: var(--pp-text); box-shadow: inset 0 0 0 1px var(--pp-border2); }
+.nt-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 90; background: color-mix(in srgb, var(--pp-bg) 92%, transparent); backdrop-filter: blur(8px); border-top: 1px solid var(--pp-border); box-shadow: 0 -6px 20px var(--pp-shadow); }
+.nt-bar-in { max-width: 1120px; margin: 0 auto; padding: 14px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
 .nt-bar-msg { font-size: 12px; margin-top: 2px; min-height: 16px; }
 .nt-start { padding: 11px 28px; font-size: 14px; }
 @media (max-width: 900px) {
+  .nt-checklist li { padding-bottom: 0; }
+  .nt-checklist li::before { display: none; }
   .nt-wrap { padding: 32px 16px 200px; }
   .nt-grid { grid-template-columns: minmax(0, 1fr); gap: 36px; }
   .nt-side { position: static; }
