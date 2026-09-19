@@ -44,9 +44,20 @@ page.set_default_timeout(8000)
 step = 0
 
 
+# Form state and focus are not in page.content(), so include them: focusing a field,
+# typing or ticking a box is a visible change, not a dead click.
+FORM_STATE_JS = """() => {
+  const a = document.activeElement;
+  const fields = [...document.querySelectorAll('input, textarea, select')]
+    .map(el => el.type === 'checkbox' || el.type === 'radio' ? String(el.checked) : el.value);
+  return (a ? a.tagName + '#' + (a.name || a.id || '') : '') + '|' + fields.join('\\u0001');
+}"""
+
+
 def fingerprint() -> str:
     try:
-        return hashlib.sha1((page.url + page.content()).encode()).hexdigest()
+        state = page.url + page.content() + page.evaluate(FORM_STATE_JS)
+        return hashlib.sha1(state.encode()).hexdigest()
     except PlaywrightError:
         return ""
 
